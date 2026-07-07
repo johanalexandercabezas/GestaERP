@@ -1,0 +1,4 @@
+LIBRARY
+EXPORTS
+  __rustc_proc_macro_decls_239d87bb59df674__ DATA
+  rust_metadata_phf_macros_239d87bb59df674 DATA

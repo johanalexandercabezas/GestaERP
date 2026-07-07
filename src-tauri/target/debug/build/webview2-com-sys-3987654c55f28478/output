@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\target\debug\build\webview2-com-sys-3987654c55f28478\out\x64
+cargo:rustc-link-lib=advapi32

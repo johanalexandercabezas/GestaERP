@@ -1,0 +1,9 @@
+C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\target\debug\deps\phf-59f717e289b83956.d: C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\lib.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\map.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_map.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_set.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\set.rs
+
+C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\target\debug\deps\libphf-59f717e289b83956.rmeta: C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\lib.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\map.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_map.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_set.rs C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\set.rs
+
+C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\lib.rs:
+C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\map.rs:
+C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_map.rs:
+C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\ordered_set.rs:
+C:\Users\Jcabezas\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\phf-0.13.1\src\set.rs:

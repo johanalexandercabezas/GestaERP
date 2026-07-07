@@ -1,0 +1,4 @@
+LIBRARY
+EXPORTS
+  __rustc_proc_macro_decls_f6b5b38ee07f71c3__ DATA
+  rust_metadata_darling_macro_f6b5b38ee07f71c3 DATA
