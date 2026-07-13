@@ -1,0 +1,69 @@
+# ============================================================
+# GestaERP — Docker Compose (Desarrollo Local + Producción)
+# ============================================================
+
+version: "3.9"
+
+services:
+  # ---------- Servicio Principal: GestaERP ----------
+  gestaerp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gestaerp-app
+    restart: unless-stopped
+    ports:
+      - "1420:1420"
+    environment:
+      - GESTAERP_ENV=${GESTAERP_ENV:-production}
+      - GESTAERP_LOG_LEVEL=${GESTAERP_LOG_LEVEL:-info}
+      - GESTAERP_SECRET_KEY=${GESTAERP_SECRET_KEY}
+      - GESTAERP_DB_PEPPER=${GESTAERP_DB_PEPPER}
+    volumes:
+      # Persistencia de datos de la aplicación
+      - gestaerp-data:/data
+      # Archivo .env (opcional, para secretos)
+      - ./.env:/app/.env:ro
+    networks:
+      - gestaerp-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1420"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=false"
+
+  # ---------- Nginx (Proxy Reverso) — Opcional para producción ----------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: gestaerp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - gestaerp-nginx-logs:/var/log/nginx
+    depends_on:
+      - gestaerp
+    networks:
+      - gestaerp-network
+    profiles:
+      - production
+      - with-nginx
+
+volumes:
+  gestaerp-data:
+    driver: local
+    name: gestaerp-data
+  gestaerp-nginx-logs:
+    driver: local
+    name: gestaerp-nginx-logs
+
+networks:
+  gestaerp-network:
+    driver: bridge
+    name: gestaerp-network

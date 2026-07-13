@@ -1,0 +1,123 @@
+╔══════════════════════════════════════════════════════════════╗
+║              GESTAERP - GUÍA RÁPIDA PARA EL CLIENTE          ║
+║              --------------------------------------          ║
+║         Sistema de Gestión Empresarial - GestaSoftTech       ║
+╚══════════════════════════════════════════════════════════════╝
+
+📌 VERSIÓN: 0.1.0
+📌 DESARROLLADO POR: Johan Alexander Cabezas Huila - CEO
+📌 EMPRESA: GestaSoftTech
+📌 SITIO WEB: www.fundasopaco.org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. REQUISITOS DEL SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Windows 10 o 11 (64 bits)
+✅ 4 GB de RAM o más
+✅ 500 MB de espacio libre en disco
+✅ No requiere internet (funciona 100% offline)
+✅ No requiere instalación de bases de datos externas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. INSTALACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+a) Ejecuta el archivo GestaERP_x.x.x_x64-setup.msi
+b) Sigue las instrucciones del instalador
+c) Al finalizar, GestaERP se abrirá automáticamente
+d) Completa la configuración inicial:
+   - Nombre del negocio
+   - NIT
+   - Logo (opcional)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PRIMEROS PASOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 USUARIO ADMINISTRADOR POR DEFECTO:
+   Usuario: admin
+   Clave:   admin123
+
+⚠️ CAMBIA LA CONTRASEÑA DESPUÉS DEL PRIMER INICIO DE SESIÓN.
+
+🔄 FLUJO BÁSICO DE USO:
+   1. Inicia sesión con admin / admin123
+   2. Ve al módulo "Licencias" e ingresa la clave de activación
+   3. Crea productos en "Productos"
+   4. Registra compras en "Compras"
+   5. Vende en "Punto de Venta"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. MÓDULOS DISPONIBLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Dashboard       → Panel principal con resumen del negocio
+📦 Productos       → Gestionar inventario de productos
+🛒 Punto de Venta  → Realizar ventas (con lector de código de barras)
+📋 Compras         → Registrar compras a proveedores
+🏢 Proveedores     → Gestionar proveedores
+👥 Clientes        → Gestionar clientes
+👔 Empleados       → Gestionar empleados
+💰 Nómina          → Generar nómina y liquidación
+🏦 Caja            → Apertura y cierre de caja
+💸 Gastos          → Registrar gastos del negocio
+🤝 Cuentas x Cobrar→ Control de ventas a crédito
+📈 Reportes        → Reportes de ventas y exportación
+💾 Backups         → Copias de seguridad y migración
+📅 Calendario      → Notas, recordatorios y reuniones
+🔍 Auditoría Stock → Validación de inventario físico
+
+SOLO PLAN AVANZADO:
+🔐 Auditoría de Stock → Conteo físico vs sistema
+🔐 Personalización    → Logo y datos del negocio
+🔐 Soporte Prioritario
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. ¿CÓMO MIGRAR A OTRO COMPUTADOR?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PASO 1 - En el computador actual:
+   a) Abre GestaERP
+   b) Ve al módulo "Backups"
+   c) Haz clic en "Crear backup"
+   d) Haz clic en el ícono de exportar (↓) junto al backup creado
+   e) El archivo se copiará automáticamente al Escritorio
+
+PASO 2 - En el computador nuevo:
+   a) Instala GestaERP
+   b) Abre GestaERP y ve a "Backups"
+   c) Haz clic en "Importar"
+   d) Escribe la ruta del archivo que copiaste
+      Ejemplo: C:\Users\tunombre\Desktop\gestaerp_20260401_143000.db
+   e) Haz clic en "Importar backup"
+   f) Selecciona el backup importado y haz clic en "Restaurar"
+   g) Reinicia GestaERP
+
+✅ ¡Tus datos están en el nuevo computador!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. ¿CÓMO ACTUALIZAR GESTAERP?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+a) Cierra GestaERP si está abierto
+b) Ejecuta el nuevo instalador MSI
+c) El instalador reemplazará los archivos
+d) Tu base de datos NO se borra (está protegida en %APPDATA%)
+e) Al abrir GestaERP, las nuevas funciones estarán disponibles
+
+⚠️ IMPORTANTE:
+   - La base de datos se conserva al actualizar
+   - No es necesario hacer backup antes de actualizar,
+     pero es recomendable por seguridad
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SOPORTE TÉCNICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📧 Email: soporte@fundasopaco.org
+🌐 Web:   www.fundasopaco.org
+👤 CEO:   Johan Alexander Cabezas Huila
+🏢 Empresa: GestaSoftTech
+
+© 2026 GestaSoftTech - Todos los derechos reservados

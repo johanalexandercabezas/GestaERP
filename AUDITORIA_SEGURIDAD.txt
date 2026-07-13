@@ -1,0 +1,247 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║       GESTAERP - AUDITORÍA DE SEGURIDAD DIGITAL v1.0                     ║
+║       =============================================                      ║
+║                                                                          ║
+║  Análisis de vulnerabilidades y protección de derechos de autor          ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Fecha: Junio 2026
+Auditor: Johan Alexander Cabezas Huila - CEO GestaSoftTech
+Producto: GestaERP v0.1.0
+Arquitectura: Tauri v2 + Rust backend + React frontend + SQLCipher
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ÍNDICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. RESUMEN EJECUTIVO
+2. FORTALEZAS DE SEGURIDAD ACTUALES
+3. VULNERABILIDADES IDENTIFICADAS
+4. PLAN DE MITIGACIÓN
+5. PROTECCIÓN DE DERECHOS DE AUTOR
+6. RECOMENDACIONES FINALES
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. RESUMEN EJECUTIVO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GestaERP tiene una arquitectura sólida con múltiples capas de seguridad
+ya implementadas. Sin embargo, existen áreas de mejora para proteger
+tanto los datos del cliente como los derechos de autor del software.
+
+CALIFICACIÓN GENERAL: 7.5/10 - Buen nivel de seguridad base,
+mejoras recomendadas para producción empresarial.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. FORTALEZAS DE SEGURIDAD ACTUALES (YA IMPLEMENTADAS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ 2.1 BASE DE DATOS CIFRADA CON SQLCIPHER
+   - La BD se cifra con AES-256 usando la clave "GestaERP2026Encrypt!"
+   - Si alguien roba el archivo gestaerp.db, no puede leerlo sin la clave
+   - Nivel: ALTO
+
+✅ 2.2 CONTRASEÑAS CON HASH ARGON2id
+   - Las contraseñas NO se almacenan en texto plano
+   - Argon2id es el estándar actual recomendado por OWASP
+   - Nivel: MUY ALTO
+
+✅ 2.3 AUTENTICACIÓN POR SESIÓN
+   - El backend verifica que el usuario esté autenticado en cada comando
+   - No se puede ejecutar ninguna acción sin sesión activa
+   - Nivel: ALTO
+
+✅ 2.4 LICENCIAS CON VALIDACIÓN CRIPTOGRÁFICA
+   - Las claves de activación usan HMAC-SHA256 con llave secreta
+   - Ventana de validez de 5 días evita reuso infinito
+   - Nivel: ALTO
+
+✅ 2.5 CONTROL DE ACCESO POR ROLES
+   - Solo administradores pueden crear/eliminar usuarios
+   - Solo administradores pueden restaurar backups
+   - Nivel: MEDIO-ALTO
+
+✅ 2.6 APLICACIÓN OFFLINE (SIN SERVIDOR)
+   - No hay servidor remoto que pueda ser atacado
+   - No hay datos en la nube que puedan ser interceptados
+   - Nivel: MUY ALTO
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. VULNERABILIDADES IDENTIFICADAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ 3.1 CLAVE SQLCIPHER EN CÓDIGO FUENTE (RIESGO MEDIO)
+   ┌─────────────────────────────────────────────┐
+   │ db.rs:  let _ = conn.pragma_update(None,     │
+   │         "key", "GestaERP2026Encrypt!");       │
+   └─────────────────────────────────────────────┘
+   La clave de cifrado de la BD está hardcodeada.
+   Cualquiera que compile el ERP puede verla.
+   IMPACTO: Si alguien decompila el .exe, obtiene la clave.
+
+⚠️ 3.2 LLAVE SECRETA DE LICENCIAS EN CÓDIGO FUENTE (RIESGO MEDIO)
+   ┌─────────────────────────────────────────────┐
+   │ license.rs: const SECRET_KEY: &[u8] =        │
+   │   b"GestaERP_2026_SecureKey_Colombia";       │
+   └─────────────────────────────────────────────┘
+   Misma vulnerabilidad que SQLCIPHER.
+
+⚠️ 3.3 USUARIO ADMIN POR DEFECTO (RIESGO BAJO)
+   - admin / admin123 al iniciar por primera vez
+   - Si el cliente no cambia la contraseña, cualquiera puede acceder
+
+⚠️ 3.4 SIN BLOQUEO POR INTENTOS FALLIDOS (RIESGO MEDIO)
+   - No hay límite de intentos de inicio de sesión
+   - Un atacante podría probar contraseñas indefinidamente
+
+⚠️ 3.5 SIN REGISTRO DE AUDITORÍA (RIESGO MEDIO)
+   - No se registra quién hizo qué (ej: quién eliminó un producto)
+   - No hay trazabilidad de acciones críticas
+
+⚠️ 3.6 SIN OFUSCACIÓN DEL CÓDIGO (RIESGO BAJO)
+   - El frontend React se distribuye como JS legible
+   - Un competidor podría inspeccionar la lógica del frontend
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PLAN DE MITIGACIÓN (RECOMENDACIONES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4.1 OFUSCAR CLAVES EN CÓDIGO (Urgente - 1 hora)
+─────────────────────────────────────────────────
+Mover las claves a variables de entorno o generarlas
+en tiempo de compilación:
+
+   // En lugar de texto plano:
+   let key = derive_key_from_seed("GestaERP2026");
+   // donde derive_key_from_seed usa SHA256 para generar la clave
+
+4.2 FORZAR CAMBIO DE CONTRASEÑA EN PRIMER INICIO (30 min)
+─────────────────────────────────────────────────────────
+Al iniciar sesión con admin/admin123, mostrar un modal
+obligatorio para cambiar la contraseña antes de continuar.
+
+4.3 IMPLEMENTAR BLOQUEO POR INTENTOS (2 horas)
+──────────────────────────────────────────────
+Agregar contador de intentos en la tabla users:
+
+   ALTER TABLE users ADD COLUMN login_attempts INTEGER DEFAULT 0;
+   ALTER TABLE users ADD COLUMN locked_until TEXT;
+
+   Bloquear después de 5 intentos fallidos por 15 minutos.
+
+4.4 REGISTRO DE AUDITORÍA (4 horas)
+───────────────────────────────────
+Crear tabla "audit_log":
+
+   CREATE TABLE audit_log (
+       id INTEGER PRIMARY KEY,
+       user_id INTEGER,
+       action TEXT,
+       details TEXT,
+       created_at TEXT
+   );
+
+   Registrar eventos como:
+   - Inicio/cierre de sesión
+   - Creación/eliminación de productos
+   - Cambios de roles
+   - Activación de licencias
+
+4.5 OFUSCAR FRONTEND (30 min)
+─────────────────────────────
+En vite.config.ts, habilitar minificación y ofuscación:
+
+   build: { minify: 'terser', terserOptions: { compress: true } }
+
+   Esto hace el código JS mucho más difícil de leer.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PROTECCIÓN DE DERECHOS DE AUTOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5.1 MECANISMOS ACTUALES DE PROTECCIÓN:
+───────────────────────────────────────
+✅ Licencias con validación HMAC-SHA256
+✅ Planes de suscripción (Básico, Intermedio, Avanzado, ONG)
+✅ Control de módulos por plan
+✅ Ventana de 5 días para activación
+✅ Marcas de agua visibles en tickets ("GestaSoftTech")
+
+5.2 MEDIDAS ADICIONALES RECOMENDADAS:
+───────────────────────────────────────
+
+📌 A. OFUSCACIÓN DEL CÓDIGO COMPILADO
+   El binario de Rust (EXE) es difícil de decompilar, pero no imposible.
+   Recomendación: Usar `upx --best appsdesktop.exe` para comprimir
+   y dificultar el análisis estático.
+
+📌 B. VERIFICACIÓN DE INTEGRIDAD
+   Agregar un hash SHA256 del ejecutable que se valida al iniciar.
+   Si el .exe fue modificado, el ERP no arranca.
+
+📌 C. CLAVE DE API REMOTA (FUTURO)
+   Para versiones futuras con conexión a internet, validar la licencia
+   contra un servidor central de GestaSoftTech.
+
+📌 D. COPYRIGHT EN CÓDIGO
+   Todos los archivos .rs y .tsx deben tener encabezado:
+   /*
+    * GestaERP v0.1.0 - © 2026 GestaSoftTech
+    * Autor: Johan Alexander Cabezas Huila
+    * Prohibida su distribución no autorizada.
+    */
+
+📌 E. REGISTRO DE MARCA
+   Recomendación legal: Registrar "GestaERP" y "GestaSoftTech"
+   como marca ante la Superintendencia de Industria y Comercio (SIC)
+   en Colombia. Costo aproximado: $150.000 COP.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. MATRIZ DE RIESGO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Vulnerabilidad                    Probabilidad  Impacto   Prioridad
+─────────────────────────────────────────────────────────────────
+Claves en código fuente           Media        Alto      🔴 ALTA
+Admin sin cambio de contraseña    Alta         Medio     🟡 MEDIA
+Sin bloqueo de intentos           Media        Medio     🟡 MEDIA
+Sin registro de auditoría         Media        Medio     🟡 MEDIA
+Código frontend sin ofuscar       Baja         Bajo      🟢 BAJA
+Sin verificación de integridad    Baja         Alto      🟢 BAJA
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. CONCLUSIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GestaERP tiene una base de seguridad sólida:
+✅ Cifrado SQLCIPHER en BD
+✅ Hashing Argon2id en contraseñas  
+✅ Sesión con verificación de autenticación
+✅ Licencias con validación HMAC-SHA256
+✅ Arquitectura offline (sin ataques remotos)
+
+Para una protección completa antes de distribución comercial,
+se recomienda implementar prioritariamente:
+
+   🔴 1. Ofuscar claves SQLCIPHER y HMAC (1 hora)
+   🟡 2. Forzar cambio de contraseña en primer inicio (30 min)
+   🟡 3. Bloqueo por intentos fallidos (2 horas)
+   🟡 4. Registro de auditoría básico (4 horas)
+
+Estas 4 mejoras elevan la calificación de 7.5/10 a 9.5/10.
+
+────────────────────────────────────────────────────────────────────────────
+  © 2026 GestaSoftTech - Documento confidencial
+  Desarrollado por Johan Alexander Cabezas Huila - CEO
+  www.fundasopaco.org
+────────────────────────────────────────────────────────────────────────────

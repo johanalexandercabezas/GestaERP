@@ -1,0 +1,4 @@
+[env]
+OPENSSL_DIR = "C:\\vcpkg\\installed\\x64-windows"
+OPENSSL_LIB_DIR = "C:\\vcpkg\\installed\\x64-windows\\lib"
+OPENSSL_INCLUDE_DIR = "C:\\vcpkg\\installed\\x64-windows\\include"

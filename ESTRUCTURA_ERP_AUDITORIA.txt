@@ -1,0 +1,450 @@
+================================================================================
+                    ESTRUCTURA DEL ERP GESTAERP - AUDITORÍA
+================================================================================
+
+FECHA: 2025-06-19
+VERSIÓN: 1.0.0 con módulo Servicios independiente
+
+================================================================================
+1. ARQUITECTURA GENERAL
+================================================================================
+
+Tecnologías:
+- Frontend: React + TypeScript + Vite + Tailwind CSS + Framer Motion
+- Backend: Tauri (Rust) + SQLite (encriptado)
+- Base de datos: SQLite con PRAGMA key="GestaERP2026Encrypt!"
+- Build: npm run build (tsc + vite) / cargo check / cargo test
+
+Rutas:
+- Instalación: C:\Users\Jcabezas\Downloads\GestaERP\
+- Datos: %APPDATA%\GestaERP\
+  - gestaerp.db (base de datos encriptada)
+  - assets\logo.png
+  - backups\ (respaldos automáticos)
+  - reportes\ (PDFs)
+  - tickets\ (tickets HTML)
+
+================================================================================
+2. ESTRUCTURA DEL BACKEND (Rust / Tauri)
+================================================================================
+
+src-tauri/
+├── src/
+│   ├── main.rs                    # Punto de entrada, registro de comandos
+│   ├── db.rs                      # Conexión SQLite, migraciones, esquema
+│   ├── commands/                  # Comandos Tauri (API backend)
+│   │   ├── mod.rs
+│   │   ├── auth.rs                # Login/logout, verificación de contraseñas
+│   │   ├── products.rs            # CRUD productos + list_active_services
+│   │   ├── sales.rs               # create_sale_v2, get_recent_sales
+│   │   ├── purchases.rs           # Compras (create, list, duplicates)
+│   │   ├── suppliers.rs           # CRUD proveedores
+│   │   ├── cash.rs                # Apertura/cierre de caja
+│   │   ├── backup.rs              # Backups (create, list, restore, delete, export, import)
+│   │   ├── customers.rs           # CRUD clientes
+│   │   ├── reports.rs             # Reportes de ventas (generate, export CSV)
+│   │   ├── users.rs               # CRUD usuarios
+│   │   ├── expenses.rs            # CRUD gastos
+│   │   ├── physical_inventory.rs  # Auditoría de stock (condensaciones físicas)
+│   │   ├── receivables.rs         # Cuentas por cobrar (list, register_payment)
+│   │   ├── payroll/               # Nómina
+│   │   │   ├── mod.rs
+│   │   │   ├── payroll.rs         # generate_payroll, get_payroll_history
+│   │   │   └── reports.rs         # generate_payroll_report, get_benefit_load
+│   │   ├── license.rs             # Activación de licencias (trial, key)
+│   │   ├── settings.rs            # Configuración (business info, logo, reset_database)
+│   │   ├── calendar_notes.rs      # Notas de calendario
+│   │   ├── notifications.rs       # Notificaciones
+│   │   └── info.rs                # Información de la app
+│   └── utils.rs                   # Utilidades (formato COP, etc.)
+├── Cargo.toml                     # Dependencias Rust
+├── build.rs                       # Script de compilación
+└── capabilities/                  # Permisos Tauri
+
+================================================================================
+3. ESTRUCTURA DEL FRONTEND (React / TypeScript)
+================================================================================
+
+src/
+├── main.tsx                       # Punto de entrada React
+├── App.tsx                        # Componente principal, rutas, menú lateral
+├── index.css                      # Estilos globales
+├── tailwind.config.js             # Configuración Tailwind
+├── vite.config.ts                 # Configuración Vite
+├── tsconfig.json                  # Configuración TypeScript
+│
+├── views/                         # Vistas principales
+│   ├── SetupView.tsx              # Configuración inicial del negocio
+│   ├── LoginView.tsx              # Pantalla de login
+│   ├── DashboardView.tsx          # Panel principal (estadísticas)
+│   ├── ProductsView.tsx           # Catálogo de productos (solo productos físicos)
+│   ├── ServicesView.tsx           # Catálogo de servicios (sin stock)
+│   ├── POSView.tsx                # Punto de venta (solo productos físicos)
+│   ├── PurchasesView.tsx          # Registro de compras
+│   ├── SuppliersView.tsx          # Gestión de proveedores
+│   ├── CashView.tsx               # Caja (apertura/cierre)
+│   ├── BackupView.tsx             # Backups + botón Limpiar historial
+│   ├── CustomersView.tsx          # Gestión de clientes
+│   ├── ReportsView.tsx            # Reportes de ventas
+│   ├── UsersView.tsx              # Gestión de usuarios
+│   ├── ExpensesView.tsx           # Registro de gastos
+│   ├── ReceivablesView.tsx        # Cuentas por cobrar
+│   ├── EmployeesView.tsx          # Gestión de empleados
+│   ├── PayrollView.tsx            # Nómina
+│   ├── PhysicalInventoryView.tsx  # Auditoría de stock
+│   ├── CalendarView.tsx           # Calendario
+│   ├── AboutView.tsx              # Acerca de
+│   └── ForceOpenCashModal.tsx     # Modal de apertura forzada de caja
+│
+├── components/
+│   ├── ui/                        # Componentes UI reutilizables
+│   │   ├── PremiumModal.tsx
+│   │   ├── PremiumButton.tsx
+│   │   ├── PremiumToast.tsx
+│   │   ├── PremiumSelect.tsx
+│   │   ├── Skeleton.tsx
+│   │   ├── NumericInput.tsx
+│   │   └── HelpAssistant.tsx
+│   └── ...
+│
+├── stores/                        # Estado global
+│   └── theme-store.ts             # Tema (claro/oscuro)
+│
+├── types/                         # Tipos TypeScript
+│   └── index.ts
+│
+├── utils/                         # Utilidades
+│   ├── formatCurrency.ts          # Formato COP (colombiano)
+│   └── ...
+│
+├── data/                          # Datos estáticos/mocks
+│   └── ...
+│
+├── pages/                         # Páginas legacy (si aplica)
+│   └── ...
+│
+├── assets/                        # Imágenes, logos
+│   └── ...
+│
+└── App.css                        # Estilos de App
+
+================================================================================
+4. ESQUEMA DE BASE DE DATOS (SQLite encriptado)
+================================================================================
+
+Tablas principales:
+
+1. settings
+   - key (PK), value
+
+2. users
+   - id (PK), username, password, full_name, role, active, created_at
+   - Roles: admin, cashier
+
+3. licenses
+   - id (PK), license_key, plan, activated_at, expires_at, max_users, active
+
+4. products
+   - id (PK), sku, name, description, price, cost, stock, min_stock, max_stock
+   - iva_percent, unit (UNIDAD/SERVICIO), active
+   - Índice único: sku
+
+5. customers
+   - id (PK), name, doc_type, doc_number, phone, email, created_at
+
+6. suppliers
+   - id (PK), name, nit, phone, email, doc_type, city, address
+   - payment_method, bank_account, iva_responsible
+   - offers_credit, credit_days, credit_limit, created_at
+
+7. employees
+   - id (PK), name, doc_type, doc_number, position, base_salary
+   - transport_allowance, payment_frequency, risk_level
+   - phone, email, city, address, hire_date
+   - eps, arl, afp, ccf, has_social_security, department, active, created_at
+
+8. cash_registers
+   - id (PK), user_id, open_date, close_date, initial_balance
+   - current_balance, final_balance, status
+
+9. sales
+   - id (PK), user_id, customer_id, total, payment_method, created_at
+
+10. sale_items
+    - id (PK), sale_id, product_id, quantity, unit_price, total_price
+
+11. purchases
+    - id (PK), user_id, supplier_id, supplier_name, invoice_number, total, created_at
+
+12. purchase_items
+    - id (PK), purchase_id, product_id, product_name, description
+    - quantity, unit_cost, total_cost, iva_percent, unit
+
+13. expenses
+    - id (PK), user_id, description, amount, category, payment_method, created_at
+    - supplier_id, supplier_name
+
+14. receivables
+    - id (PK), customer_id, customer_name, sale_id, total, paid, status, created_at
+
+15. receivable_payments
+    - id (PK), receivable_id, amount, payment_method, created_at
+
+16. inventory_movements
+    - id (PK), product_id, movement_type, quantity, unit_price, reason, created_at
+
+17. physical_counts
+    - id (PK), user_id, status, notes, created_at
+
+18. physical_count_items
+    - id (PK), count_id, product_id, theoretical_qty, counted_qty, difference, adjusted
+
+19. payroll_entries
+    - id (PK), employee_id, period, payment_frequency, days_worked
+    - basic_salary, transport_allowance, overtime hours (day/night/sunday/holiday)
+    - total_earnings, health_deduction, pension_deduction, net_salary, created_at
+
+20. calendar_notes
+    - (definido en calendar_notes.rs)
+
+21. notifications
+    - (definido en notifications.rs)
+
+22. schema_migrations
+    - version (PK), applied_at
+
+Tablas eliminadas por reset_database (preservan estructura):
+- sales, sale_items, purchases, purchase_items, expenses, receivables
+- receivable_payments, inventory_movements, payroll_entries, physical_counts
+- cash_registers, calendar_notes, notifications
+
+Datos eliminados por reset_database:
+- productos/servicios de prueba, clientes de prueba, proveedores de prueba
+- empleados de prueba, migraciones, usuarios adicionales
+
+Datos conservados por reset_database:
+- settings (nombre_negocio, nit, telefono, direccion, ciudad, email, logo_path, etc.)
+- licenses
+- usuario admin (admin/admin123)
+- productos reales del negocio
+- servicios reales
+
+================================================================================
+5. COMANDOS BACKEND DISPONIBLES
+================================================================================
+
+AUTENTICACIÓN:
+- login(username, password) → LoginResponse
+- get_current_user() → UserInfo | null
+- logout() → void
+
+PRODUCTOS:
+- create_product(...) → void
+- list_products() → Product[]
+- list_services() → Product[] (todos los unit='SERVICIO')
+- list_active_services() → Product[] (solo activos)
+- update_product(...) → void
+- delete_product(id) → void
+- search_products(query) → Product[]
+- check_duplicates(sku, excludeId?) → { duplicate: boolean, fields: string[] }
+- find_product_by_sku(sku) → Product | null
+
+VENTAS:
+- create_sale_v2({ paymentMethod, items, customerId, customerName, discountPercent }) → saleId
+- get_recent_sales(limit) → Sale[]
+
+COMPRAS:
+- check_invoice_duplicate(invoiceNumber) → boolean
+- create_purchase(...) → void
+- get_recent_purchases(limit) → Purchase[]
+
+PROVEEDORES:
+- create_supplier(...) → void
+- list_suppliers() → Supplier[]
+- update_supplier(...) → void
+- delete_supplier(id) → void
+
+CLIENTES:
+- create_customer(...) → void
+- list_customers() → Customer[]
+- update_customer(...) → void
+- delete_customer(id) → void
+
+CAJA:
+- open_cash_register(userId, initialBalance) → void
+- close_cash_register(userId, finalBalance) → void
+- get_open_register() → CashRegister | null
+- get_recent_registers(limit) → CashRegister[]
+
+BACKUPS:
+- create_backup() → BackupInfo
+- list_backups() → BackupInfo[]
+- restore_backup(filename) → void
+- delete_backup(filename) → void
+- export_backup(filename, destPath) → BackupInfo
+- import_backup(sourcePath) → BackupInfo
+- open_backups_folder() → void
+
+REPORTES:
+- generate_sales_report(startDate, endDate) → { html, filename }
+- export_report_to_csv(startDate, endDate) → { csv, filename }
+
+USUARIOS:
+- create_user(...) → void
+- list_users() → User[]
+- update_user(...) → void
+- delete_user(id) → void
+
+GASTOS:
+- create_expense(...) → void
+- list_expenses() → Expense[]
+
+INVENTARIO FÍSICO:
+- create_physical_count(userId, notes) → countId
+- update_counted_qty(countId, productId, countedQty) → void
+- list_physical_counts() → PhysicalCount[]
+- get_physical_count(countId) → PhysicalCount detail
+- apply_adjustments(countId) → void
+- update_count_status(countId, status) → void
+- get_audit_summary() → summary
+- generate_stock_validation_report() → { html, filename }
+
+CUENTAS POR COBRAR:
+- list_receivables() → Receivable[]
+- register_payment(receivableId, amount, paymentMethod) → void
+
+NÓMINA:
+- generate_payroll(period, frequency, extras) → { payrollId, summary }
+- get_payroll_history() → PayrollEntry[]
+- get_benefit_load(period) → BenefitLoad
+- generate_payroll_report(period) → { html, filename }
+
+LICENCIAS:
+- activate_license(licenseKey) → success
+- activate_trial() → success
+- get_license_status() → LicenseInfo
+
+CONFIGURACIÓN:
+- get_setting(key) → string | null
+- set_setting(key, value) → void
+- is_setup_complete() → boolean
+- save_business_info(nombre, nit, iva, telefono, direccion, ciudad, email) → void
+- upload_business_logo(logo_bytes) → "Logo guardado"
+- get_business_logo() → base64 | null
+- reset_database() → "Base de datos limpiada..."
+- get_desktop_path() → string
+
+CALENDARIO:
+- create_calendar_note(...) → void
+- list_calendar_notes() → CalendarNote[]
+- update_calendar_note(...) → void
+- delete_calendar_note(id) → void
+
+NOTIFICACIONES:
+- get_notifications() → Notification[]
+
+INFORMACIÓN:
+- get_app_info() → AppInfo
+- is_db_ready() → boolean
+
+TICKETS:
+- print_ticket(business_name, items, total, payment_method, cash_received, change) → path
+
+================================================================================
+6. RUTAS DE LA APLICACIÓN (Frontend)
+================================================================================
+
+/dashboard          → DashboardView (acceso general)
+/products           → ProductsView (admin: CRUD, otros: solo lectura)
+/services           → ServicesView (acceso general, siempre visible)
+/pos                → POSView (vendedor/cajero)
+/purchases          → PurchasesView (admin)
+/suppliers          → SuppliersView (admin)
+/customers          → CustomersView (acceso general)
+/employees          → EmployeesView (admin+HR)
+/payroll            → PayrollView (admin+HR)
+/cash               → CashView (cajero/admin)
+/expenses           → ExpensesView (admin)
+/receivables        → ReceivablesView (admin)
+/reports            → ReportsView (acceso general)
+/physical_inventory → PhysicalInventoryView (solo admin)
+/backups            → BackupView (admin, incluye botón Limpiar historial)
+/calendar           → CalendarView (acceso general)
+/users              → UsersView (solo admin)
+/acerca             → AcercaView (acceso general)
+
+Filtros de licencia:
+- adminOnly: "physical_inventory", "users"
+- always visible: "acerca", "calendar", "services"
+- por módulos en licencia: resto
+
+================================================================================
+7. COMPONENTES UI PRINCIPALES
+================================================================================
+
+PremiumModal      - Modal con animaciones, tamaños configurable
+PremiumButton     - Botón con variantes (primary, secondary, ghost, danger)
+PremiumToast      - Sistema de notificaciones toast
+PremiumSelect     - Select personalizado con búsqueda
+Skeleton          - Loader esqueleto para tablas
+NumericInput      - Input numérico con prefijo/sufijo, validación
+HelpAssistant     - Asistente de ayuda en interfaz
+
+Todos con soporte de tema claro/oscuro via Tailwind.
+
+================================================================================
+8. TESTS UNITARIOS (Rust)
+================================================================================
+
+Test suites (23 tests):
+- license:: 4 tests (generación/validación de keys, activación)
+- payroll:: 5 tests (cálculos de parafiscales, horas extra)
+- products:: 4 tests (IVA, redondeo)
+- cash_register:: 2 tests (apertura, no duplicados)
+- purchases:: 2 tests (compra válida/inválida)
+- sales:: 3 tests (cantidad inválida, actualiza stock, min_stock)
+- backup:: 1 test (flujo completo)
+
+Comando: cargo test --manifest-path src-tauri/Cargo.toml
+Resultado: 23 passed, 0 failed
+
+================================================================================
+9. ESTADO DE MÓDULOS
+================================================================================
+
+✅ Productos      - CRUD, búsqueda, stock, paginación
+✅ Servicios      - CRUD, catálogo, facturación independiente (sin stock)
+✅ POS            - Ventas con stock, métodos de pago, descuentos
+✅ Compras        - Registro de compras, detección de facturas duplicadas
+✅ Proveedores    - CRUD completo
+✅ Clientes       - CRUD completo
+✅ Empleados      - CRUD completo (datos laborales + seguridad social)
+✅ Nómina         - Generación de nómina, parafiscales, informes
+✅ Caja           - Apertura/cierre, balance, historial
+✅ Gastos         - CRUD de gastos operativos
+✅ Cuentas por Cobrar - Registro de pagos, saldos
+✅ Reportes       - Ventas por rango, exportación CSV
+✅ Auditoría Stock - Condensaciones físicas, ajustes
+✅ Backups        - Crear, listar, restaurar, exportar, importar
+✅ Calendario     - Notas por fecha
+✅ Licencias      - Activación, trial, planes
+✅ Notificaciones - Sistema de alertas
+✅ Configuración  - Datos del negocio, logo, tema, reset_database
+
+================================================================================
+10. NOTAS DE AUDITORÍA
+================================================================================
+
+- Base de datos encriptada con clave hardcodeada: GestaERP2026Encrypt!
+- Todos los comandos Rust son invocados desde React via Tauri invoke()
+- El sistema de licencias controla módulos visibles
+- El módulo Servicios es siempre visible
+- El comando reset_database elimina historial pero conserva datos maestros
+- Tiene sistema de migraciones versionadas (schema_migrations)
+- Tiene sistema de backups automáticos
+- Tiene validaciones de stock y stock mínimo en POS
+- Tiene impresión de tickets HTML
+
+================================================================================
+                            FIN DEL DOCUMENTO
+================================================================================

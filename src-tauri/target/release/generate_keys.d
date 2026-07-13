@@ -1,1 +1,0 @@
-C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\target\release\generate_keys.exe: C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\build.rs C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\capabilities C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\generate_keys.rs C:\Users\Jcabezas\Downloads\GestaERP\src-tauri\tauri.conf.json

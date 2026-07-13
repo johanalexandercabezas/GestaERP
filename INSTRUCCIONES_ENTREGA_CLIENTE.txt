@@ -1,0 +1,175 @@
+================================================================================
+                    GESTAERP - INSTRUCCIONES DE ACTUALIZACIÓN
+                          Versión mejorada con módulo Servicios
+================================================================================
+
+FECHA: 2025-06-19
+VERSIÓN: Mejorada con módulo "Servicios" independiente
+
+================================================================================
+1. COMANDOS PARA LIMPIAR HISTORIAL (sin perder licencia)
+================================================================================
+
+OPCIÓN A: Desde la aplicación (RECOMENDADO)
+--------------------------------------------
+1. Abrir GestaERP
+2. Ir al menú "Backups"
+3. Hacer clic en el botón rojo "Limpiar historial"
+4. Confirmar la acción en el cuadro de diálogo
+5. Esperar el mensaje de éxito
+
+Esto ejecuta `reset_database` y:
+  ✓ Elimina: Ventas, Compras, Gastos, Cuentas por Cobrar, Movimientos de inventario,
+              Nóminas, Cierres de Caja, Notas de calendario, Notificaciones
+  ✓ Elimina: Productos/Servicios de prueba, Clientes de prueba, Proveedores de prueba,
+              Empleados de prueba
+  ✓ CONSERVA: Datos del negocio (nombre, NIT, IVA, dirección, teléfono, email)
+  ✓ CONSERVA: Licencia activada
+  ✓ CONSERVA: Usuario administrador (admin / admin123)
+  ✓ CONSERVA: Productos/Servicios reales del negocio
+  ✓ CONSERVA: Clientes, Proveedores, Empleados reales
+  ✓ Hace VACUUM para compactar la base de datos
+
+OPCIÓN B: Comando Rust (para debugging)
+-----------------------------------------
+```javascript
+await invoke("reset_database")
+```
+
+================================================================================
+2. PROCEDIMIENTO DE ENTREGA AL CLIENTE (sin perder información)
+================================================================================
+
+PASO 1: Backup de seguridad (OBLIGATORIO)
+------------------------------------------
+a) Cerrar GestaERP en el equipo del cliente
+b) Copiar archivo: %APPDATA%\GestaERP\gestaerp.db
+c) Guardar en carpeta segura con fecha: gestaerp_backup_2025-06-19.db
+
+PASO 2: Actualizar archivos
+----------------------------
+a) Reemplazar carpeta C:\GestaERP (o donde esté instalado) con la nueva versión
+b) Asegurarse de que NO se toque la carpeta %APPDATA%\GestaERP
+   (ahí vive la base de datos del cliente)
+
+PASO 3: Verificar integridad
+-----------------------------
+a) Abrir GestaERP actualizado
+b) Verificar que aparezcan:
+   - Nombre del negocio
+   - NIT
+   - Logo (si lo tenía)
+   - Licencia activada
+   - Productos y Servicios existentes
+   - Clientes, Proveedores, Empleados
+c) Verificar que NO aparezcan ventas/compras/gastos antiguos (si aplica)
+
+PASO 4: Limpiar historial (si se desea empezar de cero)
+--------------------------------------------------------
+a) Ir a Backups en el menú
+b) Clic en botón "Limpiar historial"
+c) Confirmar la acción
+d) Esperar mensaje de éxito
+e) Verificar que:
+   - Ventas: 0
+   - Compras: 0
+   - Gastos: 0
+   - Caja: saldo en 0 (o con el saldo inicial definido)
+   - Productos/Servicios: solo los reales del negocio
+
+================================================================================
+3. QUÉ SE CONSERVA Y QUÉ SE PIERDE
+================================================================================
+
+SE CONSERVA (NO se modifica):
+------------------------------
+✓ Datos del negocio: nombre, NIT, IVA responsable, teléfono, dirección, ciudad, email
+✓ Logo del negocio
+✓ Licencia (plan, días restantes, activación)
+✓ Productos (catálogo, precios, stock actual)
+✓ Servicios (catálogo, precios, IVA)
+✓ Clientes (datos de contacto)
+✓ Proveedores (datos de contacto)
+✓ Empleados (datos personales y laborales)
+✓ Usuario administrador (usuario: admin, contraseña: admin123)
+✓ Configuración de tema (claro/oscuro)
+
+SE ELIMINA (con reset_database):
+---------------------------------
+✗ Ventas (todos los periodos)
+✗ Items de venta
+✗ Compras
+✗ Items de compra
+✗ Gastos operativos
+✗ Cuentas por cobrar y sus pagos
+✗ Movimientos de inventario (entradas/salidas)
+✗ Nóminas generadas
+✗ Cierres de caja (aperturas/cierres)
+✗ Notas de calendario
+✗ Notificaciones
+✗ Usuarios adicionales (solo queda admin)
+✗ Historial de migraciones
+
+================================================================================
+4. ESTRUCTURA DE INSTALACIÓN CLIENTE
+================================================================================
+
+RUTA DE INSTALACIÓN SUGERIDA:
+------------------------------
+C:\Program Files\GestaERP\
+  ├── gestaerp.exe          (aplicación principal)
+  ├── resources\            (recursos de Tauri)
+  └── ...
+
+RUTA DE DATOS (automática):
+----------------------------
+%APPDATA%\GestaERP\
+  ├── gestaerp.db           (BASE DE DATOS - NO TOCAR)
+  ├── assets\
+  │   └── logo.png          (logo del negocio)
+  ├── backups\              (respaldos automáticos)
+  ├── reportes\             (PDFs de reportes)
+  ├── tickets\              (tickets HTML)
+  └── ...
+
+================================================================================
+5. NOTAS IMPORTANTES
+================================================================================
+
+- Si el cliente tiene datos importantes (ventas antiguas), hacer backup COMPLETO
+  de la carpeta %APPDATA%\GestaERP antes de actualizar.
+
+- El comando reset_database NO se puede deshacer. Asegurar backup previo.
+
+- Si algo sale mal, restaurar gestaerp.db desde el backup.
+
+- La primera vez después de actualizar, ejecutar:
+  1. Verificar que los productos/servicios aparezcan con su stock correcto
+  2. Hacer una venta de prueba en POS para confirmar integración
+  3. Verificar que el reporte de ventas incluya productos y servicios
+  4. Verificar que el dashboard muestre los ingresos correctamente
+
+- Para soporte técnico, revisar %APPDATA%\GestaERP\gestaerp.db
+
+================================================================================
+6. NUEVAS FUNCIONALIDADES ENTREGADAS
+================================================================================
+
+✓ Módulo "Servicios" en menú lateral (ícono maletín/brevecase)
+  - Pestaña "Catálogo": CRUD completo de servicios SIN STOCK
+  - Pestaña "Facturar": Carrito, cliente obligatorio, métodos de pago
+  - Integrado con Ventas, Caja y Reportes
+
+✓ Botón "Productos" en POS para ver catálogo completo
+
+✓ Botón COBRAR siempre visible (verde)
+
+✓ Botón "Limpiar historial" en módulo Backups
+
+✓ Comando reset_database para limpiar historial
+
+✓ Servicios manejados con unit='SERVICIO' (sin stock)
+
+================================================================================
+                            FIN DEL DOCUMENTO
+================================================================================

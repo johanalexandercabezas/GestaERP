@@ -1,0 +1,156 @@
+# ============================================================
+# GestaERP — CI/CD Pipeline
+# ============================================================
+# Ejecuta en cada push y pull request a main/develop.
+# Incluye: lint, tests unitarios, build de verificación,
+# auditoría de dependencias y análisis de seguridad.
+# ============================================================
+
+name: GestaERP CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "Documentos Auxiliares/**"
+      - "backups/**"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "Documentos Auxiliares/**"
+  workflow_dispatch: # Permitir ejecución manual
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: "22"
+
+jobs:
+  # ============================================================
+  # 1. Lint y Type Check (Frontend)
+  # ============================================================
+  frontend-lint:
+    name: "Frontend: Lint + Type Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+  # ============================================================
+  # 2. Tests Unitarios (Frontend)
+  # ============================================================
+  frontend-tests:
+    name: "Frontend: Tests (Vitest)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Vitest tests
+        run: npx vitest run --reporter=verbose
+
+  # ============================================================
+  # 3. Build y Tests (Backend Rust)
+  # ============================================================
+  backend-tests:
+    name: "Backend: Build + Tests (Rust)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Run backend tests
+        working-directory: src-tauri
+        run: cargo test --verbose
+
+  # ============================================================
+  # 4. Auditoría de Seguridad (Dependencias)
+  # ============================================================
+  security-audit:
+    name: "Seguridad: Auditoría de Dependencias"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # No bloquear el merge por vulnerabilidades no críticas
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: npm audit (frontend)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit (backend)
+        working-directory: src-tauri
+        run: cargo audit
+        continue-on-error: true
+
+  # ============================================================
+  # 5. Verificación de Formato (Opcional)
+  # ============================================================
+  format-check:
+    name: "Formato: Verificación"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check

@@ -1,0 +1,86 @@
+╔══════════════════════════════════════════════════════════════╗
+║     GESTAERP - GUÍA INTERNA PARA GESTASOFTTECH              ║
+║     ----------------------------------------                ║
+║     Procedimientos para entrega, claves y compilación       ║
+╚══════════════════════════════════════════════════════════════╝
+
+📌 VERSIÓN: 0.1.0
+📌 DESARROLLADOR: Johan Alexander Cabezas Huila - CEO
+📌 EMPRESA: GestaSoftTech
+📌 SITIO WEB: www.fundasopaco.org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. GENERAR CLAVES DE ACTIVACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   cd C:\Users\tu_usuario\Downloads\GestaERP
+   cargo run --bin generate_keys <plan>
+
+   EJEMPLOS:
+   cargo run --bin generate_keys basico     → GESTA-BAS-XXX
+   cargo run --bin generate_keys intermedio → GESTA-INT-XXX
+   cargo run --bin generate_keys avanzado   → GESTA-AVZ-XXX
+   cargo run --bin generate_keys ong        → GESTA-ONG-XXX
+   cargo run --bin generate_keys avanzado 90→ 90 días
+
+   Las claves son válidas por 5 días.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. COMPILAR PARA ENTREGAR AL CLIENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   PASO 1: Eliminar BD de pruebas
+      del /f /q src-tauri\app.db
+
+   PASO 2: Limpiar compilación
+      cargo clean --manifest-path src-tauri/Cargo.toml
+
+   PASO 3: Compilar
+      npm run tauri build
+
+   PASO 4: El instalador está en:
+      src-tauri\target\release\bundle\msi\GestaERP_0.1.0_x64_en-US.msi
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. ENTREGABLES AL CLIENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   ✅ Archivo .msi (instalador)
+   ✅ Clave de activación
+   ✅ LEEME_CLIENTE.txt (guía para el usuario)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. COMANDOS RÁPIDOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   npm run tauri build        → Compilar versión final
+   npm run tauri dev          → Modo desarrollo/pruebas
+   cargo run --bin generate_keys avanzado → Generar clave
+   npx tsc --noEmit           → Verificar frontend
+   cargo check                → Verificar backend
+   cargo test                 → Ejecutar pruebas
+   cargo clean                → Limpiar compilación
+   del /f /q src-tauri\app.db → Eliminar BD de pruebas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. UBICACIÓN DE LA BD DEL CLIENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   %APPDATA%\GestaERP\gestaerp.db
+   (C:\Users\[cliente]\AppData\Roaming\GestaERP\gestaerp.db)
+
+   No se borra al desinstalar. Está protegida.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. SOLUCIÓN DE PROBLEMAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   ❌ Error de BD → del /f /q src-tauri\app.db y recompilar
+   ❌ Clave inválida → Generar nueva (expirada después de 5 días)
+   ❌ No genera MSI → npm run tauri build -- --debug
+   ❌ Error Rust → cargo clean y npm run tauri build
+
+─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ───
+© 2026 GestaSoftTech - Documentación interna
+Desarrollado por Johan Alexander Cabezas Huila - CEO
+www.fundasopaco.org

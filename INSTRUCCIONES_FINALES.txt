@@ -1,0 +1,226 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║       GESTAERP - INSTRUCCIONES FINALES PARA GESTASOFTTECH                ║
+║       ================================================                   ║
+║                                                                          ║
+║  Compilación, limpieza, generación de claves y entrega a cliente         ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Ejecutar la prueba limpia del ERP: npm run tauri dev
+
+Ejecutar las pruebas unitarias de nuevo: cargo test --manifest-path src-tauri/Cargo.toml
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 1: PREPARAR EL ERP PARA UN CLIENTE NUEVO (DEJAR EN BLANCO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANTE: Antes de compilar para entregar a un cliente, debes eliminar
+los datos de prueba que se usaron durante el desarrollo.
+
+PASO A: ELIMINAR LA BASE DE DATOS DE PRUEBAS
+─────────────────────────────────────────────
+
+  Abre CMD (símbolo del sistema) y escribe UNO POR UNO:
+
+  cd C:\Users\Jcabezas\Downloads\GestaERP
+
+  del /f /q src-tauri\app.db
+
+  :: 1. Eliminar cualquier base de datos suelta (aunque ahora no aparezca, por si acaso)
+del /Q /S *.db 2>nul
+
+:: 2. Eliminar carpetas de datos generados
+rmdir /S /Q tickets 2>nul
+rmdir /S /Q reportes 2>nul
+rmdir /S /Q nomina 2>nul
+rmdir /S /Q src-tauri\backups 2>nul
+
+:: 3. Limpiar compilaciones anteriores (esto borra target completo)
+cargo clean --manifest-path src-tauri/Cargo.toml
+
+
+PASO D: COMPILAR VERSIÓN FINAL
+──────────────────────────────
+
+  npm run tauri build
+
+  ✅ Esto genera:
+     - Instalador MSI en: src-tauri\target\release\bundle\msi\
+     - Ejecutable portátil en: src-tauri\target\release\appsdesktop.exe
+
+
+RESUMEN RÁPIDO (copia y pega todo en CMD de una vez):
+─────────────────────────────────────────────────────
+
+  cd C:\Users\Jcabezas\Downloads\GestaERP
+  del /f /q src-tauri\app.db
+  rd /s /q src-tauri\backups 2>nul
+  rd /s /q tickets 2>nul
+  rd /s /q reportes 2>nul
+  cargo clean
+  npm run tauri build
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 2: GENERAR CLAVE DE ACTIVACIÓN (SOLUCIÓN AL ERROR)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+¿POR QUÉ TARDA TANTO?
+─────────────────────
+El comando "cargo run" compila todo el proyecto desde cero si es la
+primera vez o si hiciste "cargo clean". Esto puede tardar de 5 a 15
+minutos dependiendo de tu computador. Esto es NORMAL.
+
+La próxima vez que generes una clave, será INSTANTÁNEO porque ya
+estará compilado.
+
+PASO A: IR A LA CARPETA CORRECTA
+─────────────────────────────────
+
+  Abre CMD y escribe:
+
+  cd C:\Users\Jcabezas\Downloads\GestaERP
+
+PASO B: GENERAR CLAVE (ELIGE UNO)
+───────────────────────────────────
+
+  cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- avanzado
+
+   PARA PLAN BÁSICO:      cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- basico
+   PARA PLAN INTERMEDIO:  cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- intermedio
+   PARA PLAN AVANZADO:    cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- avanzado
+   PARA PLAN ONG:         cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- ong
+   CON DÍAS PERSONALIZADOS:  cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- avanzado 90
+
+PASO C: VER EJEMPLO DE SALIDA
+──────────────────────────────
+
+  🔑 LLAVE GENERADA:
+  ━━━━━━━━━━━━━━━━━━━
+    ✅ GESTA-AVZ-1A2B3C4D  ← USAR ESTA
+       GESTA-AVZ-5E6F7G8H
+       GESTA-AVZ-9A0B1C2D
+       GESTA-AVZ-3E4F5G6H
+       GESTA-AVZ-7A8B9C0D
+  ━━━━━━━━━━━━━━━━━━━
+  Plan: avanzado | Duración: 30 días
+
+  📌 INSTRUCCIONES:
+  1. Copia la primera llave (marcada con ✅)
+  2. En GestaERP, ve a Licencias → Activar plan
+  3. Pega la llave y haz clic en Activar
+
+NOTA IMPORTANTE:
+  Las claves generadas son válidas por 5 DÍAS desde su creación.
+  Si el cliente no la usa en ese tiempo, genera una nueva clave.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 3: ¿DÓNDE ALOJAR EL ERP? RECOMENDACIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPCIÓN 1: INSTALAR CON MSI (RECOMENDADA PARA CLIENTES)
+───────────────────────────────────────────────────────
+
+  Entrega el archivo .msi al cliente.
+  El cliente lo ejecuta y el ERP se instala automáticamente en:
+
+     C:\Program Files\GestaERP\
+
+  ✅ La base de datos se guarda aparte en:
+     %APPDATA%\GestaERP\gestaerp.db
+     (C:\Users\[cliente]\AppData\Roaming\GestaERP\gestaerp.db)
+
+  ✅ El cliente puede crear un acceso directo desde el menú de inicio.
+  ✅ Puede anclar a la barra de tareas (clic derecho → Anclar a la barra).
+
+  ✅ VENTAJAS:
+     - No se pierde la BD al desinstalar.
+     - Al actualizar (ejecutando nuevo .msi), los datos se conservan.
+     - Es la forma más profesional de entrega.
+
+OPCIÓN 2: PORTÁTIL (SIN INSTALACIÓN)
+─────────────────────────────────────
+
+  Puedes entregar solo el archivo:
+
+     src-tauri\target\release\appsdesktop.exe
+
+  El cliente lo puede poner en cualquier carpeta, por ejemplo:
+
+     C:\GestaERP\appsdesktop.exe
+
+  ✅ Crea un acceso directo en el Escritorio:
+     1. Clic derecho en appsdesktop.exe → "Enviar a" → "Escritorio (crear acceso directo)"
+     2. Arrastra el acceso directo a la barra de tareas
+
+  ⚠️ DESVENTAJA:
+     - La base de datos se creará en la misma carpeta del .exe
+       (no en %APPDATA% como con el instalador).
+     - Si mueves el .exe de carpeta, la BD se queda atrás.
+
+  💡 RECOMENDACIÓN:
+     Si usas el portátil, crea una carpeta fija como:
+     C:\GestaERP\
+     Y pon ahí el appsdesktop.exe. No lo muevas de ahí.
+
+OPCIÓN 3: ACCESO DIRECTO EN BARRA DE TAREAS (PARA TÍ)
+────────────────────────────────────────────────────────
+
+  Una vez compilado el ERP (con npm run tauri build):
+
+  1. Ve a: src-tauri\target\release\
+  2. Busca: appsdesktop.exe
+  3. Clic derecho → "Anclar a la barra de tareas"
+  4. También: Clic derecho → "Enviar a" → "Escritorio (crear acceso directo)"
+
+  Así tendrás acceso rápido desde la barra de tareas y el escritorio sin
+  tener que buscar el .exe cada vez.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 4: PREGUNTAS FRECUENTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ "cargo run --bin generate_keys no funciona"
+
+   → Debes usar --manifest-path porque el Cargo.toml está en la
+     carpeta src-tauri, no en la raíz.
+
+   ✅ COMANDO CORRECTO:
+
+   cd C:\Users\Jcabezas\Downloads\GestaERP
+   cargo run --manifest-path src-tauri\Cargo.toml --bin generate_keys -- avanzado
+
+❌ "Tarda mucho en compilar"
+
+   → La primera vez es normal (5-15 min). Después será instantáneo.
+   → Si hiciste "cargo clean", toca compilar todo de nuevo.
+
+❌ "El instalador MSI no aparece"
+
+   → Ve a: src-tauri\target\release\bundle\msi\
+   → Ahí está: GestaERP_0.1.0_x64_en-US.msi
+   → Si no existe, ejecuta: npm run tauri build
+
+❌ "¿Cómo abrir CMD?"
+
+   → Presiona: Windows + R
+   → Escribe: cmd
+   → Presiona Enter
+
+❌ "¿Cómo pegar en CMD?"
+
+   → Clic derecho en la ventana del CMD (pega automáticamente)
+
+❌ "El cliente perdió su clave de activación"
+
+   → Genera una nueva con el mismo plan y entrégasela.
+   → Mientras la licencia anterior esté activa, seguirá funcionando.
+
+────────────────────────────────────────────────────────────────────────────
+  © 2026 GestaSoftTech - Desarrollado por Johan Alexander Cabezas Huila
+  www.fundasopaco.org
+────────────────────────────────────────────────────────────────────────────

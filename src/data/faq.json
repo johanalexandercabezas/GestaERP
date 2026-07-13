@@ -1,0 +1,90 @@
+[
+  {
+    "category": "Dashboard",
+    "questions": [
+      {
+        "q": "¿Qué significan las tarjetas del Dashboard?",
+        "a": "Cada tarjeta muestra un indicador clave: Caja actual (saldo en caja), Ventas de hoy, Gastos de hoy, Utilidad, Compras del mes y Productos más vendidos/comprados."
+      },
+      {
+        "q": "¿Cómo cambio el nombre de mi negocio?",
+        "a": "El nombre del negocio se configura durante el setup inicial. Si necesita cambiarlo, contacte al soporte técnico."
+      }
+    ]
+  },
+  {
+    "category": "Productos",
+    "questions": [
+      {
+        "q": "¿Cómo agrego un nuevo producto?",
+        "a": "Los productos se agregan automáticamente al registrar una compra. No se crean manualmente. Vaya a Compras, registre una compra con el nuevo producto y este aparecerá en Productos."
+      },
+      {
+        "q": "¿Puedo editar el precio de un producto?",
+        "a": "Solo el administrador puede editar el precio y el stock mínimo. Haga clic en 'Editar precio' junto al producto."
+      }
+    ]
+  },
+  {
+    "category": "Punto de Venta",
+    "questions": [
+      {
+        "q": "¿Cómo realizo una venta?",
+        "a": "Escriba el SKU o nombre del producto en el campo de búsqueda, seleccione el producto, ajuste la cantidad y haga clic en 'Cobrar'. Luego elija el método de pago y confirme."
+      },
+      {
+        "q": "¿Puedo vender a crédito?",
+        "a": "Sí. En el método de pago seleccione 'Crédito', elija el cliente y confirme. La venta se registrará como cuenta por cobrar."
+      }
+    ]
+  },
+  {
+    "category": "Compras",
+    "questions": [
+      {
+        "q": "¿Cómo registro una compra?",
+        "a": "Vaya a Compras, seleccione el proveedor, ingrese el número de factura, agregue los productos con cantidad y costo, y haga clic en 'Registrar compra'."
+      }
+    ]
+  },
+  {
+    "category": "Nómina",
+    "questions": [
+      {
+        "q": "¿Cómo genero la nómina?",
+        "a": "Vaya a Nómina, seleccione el período (año-mes), ingrese las horas extra si las hay y haga clic en 'Generar Nómina'. El sistema calculará automáticamente salarios, deducciones y prestaciones."
+      }
+    ]
+  },
+  {
+    "category": "Caja",
+    "questions": [
+      {
+        "q": "¿Cómo abro la caja?",
+        "a": "Al iniciar sesión como cajero, el sistema le pedirá abrir la caja con un monto inicial. Si es administrador, puede abrirla manualmente desde el módulo Caja."
+      }
+    ]
+  },
+  {
+    "category": "Licencias",
+    "questions": [
+      {
+        "q": "¿Cómo activo mi licencia?",
+        "a": "Al iniciar sesión por primera vez, verá la pantalla de activación. Seleccione su plan, ingrese la clave de activación proporcionada y haga clic en 'Activar licencia'."
+      },
+      {
+        "q": "¿Qué pasa si mi licencia expira?",
+        "a": "El ERP entrará en modo lectura: podrá ver la información pero no realizar nuevas operaciones. Debe adquirir una nueva clave e ingresarla en la pantalla de activación."
+      }
+    ]
+  },
+  {
+    "category": "Backups",
+    "questions": [
+      {
+        "q": "¿Cómo hago una copia de seguridad?",
+        "a": "Vaya al módulo Backups y haga clic en 'Crear backup'. El sistema guardará una copia de la base de datos. Puede restaurarla cuando lo necesite."
+      }
+    ]
+  }
+]
