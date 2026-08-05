@@ -1,6 +1,6 @@
 {
   "productName": "GestaERP",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.gestasofttech.erp",
   "build": {
     "frontendDist": "../dist",
@@ -20,10 +20,23 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost https:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
     }
   },
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "pubkey": "REEMPLAZAR_CON_CLAVE_PUBLICA_TAURI",
+      "endpoints": [
+        "https://github.com/GestaSoftTech/GestaERP/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"]
+    "icon": [
+      "icons/icon.png"
+    ],
+    "createUpdaterArtifacts": true
   }
 }

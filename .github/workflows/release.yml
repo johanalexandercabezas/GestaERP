@@ -1,0 +1,102 @@
+name: Release GestaERP
+
+# Disparadores:
+# - push de tags con formato vX.Y.Z (ej: git tag v1.1.0 && git push --tags)
+# - workflow_dispatch (botón "Run workflow" en GitHub)
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  # URL base de la release de GitHub (usada para el updater)
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest"
+            args: "--target x86_64-pc-windows-msvc"
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri"
+
+      - name: Build GestaERP (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: npm run tauri build
+        env:
+          GESTAERP_ENV: production
+          GESTAERP_SECRET_KEY: ${{ secrets.GESTAERP_PRODUCTION_SECRET }}
+          GESTAERP_DB_PEPPER: ${{ secrets.GESTAERP_PRODUCTION_PEPPER }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestaerp-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # El tag "v1.2.3" -> "1.2.3"
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "GestaERP v${{ steps.version.outputs.VERSION }}"
+          body: |
+            🚀 **Nueva versión de GestaERP — v${{ steps.version.outputs.VERSION }}**
+
+            ## 📦 Instalación
+            1. Descarga el instalador para Windows: **GestaERP_${{ steps.version.outputs.VERSION }}_x64-setup.exe**
+            2. Ejecuta el archivo (Windows SmartScreen puede pedir "Más información" → "Ejecutar de todas formas").
+            3. Los datos existentes (base de datos, configuración) se conservan automáticamente.
+
+            ## ✅ Para desarrolladores
+            - Este release fue generado automáticamente por GitHub Actions.
+            - Los artefactos incluyen el ejecutable de actualización (`latest.json` + `.msi`/`.exe`) para el **Tauri Updater** integrado en la app.
+            - Entero firmado con la clave privada almacenada en `TAURI_SIGNING_PRIVATE_KEY` (secrets del repositorio).
+          files: |
+            artifacts/*/*
+          fail_on_unmatched_files: false

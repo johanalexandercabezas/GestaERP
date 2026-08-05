@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, Result};
 use serde::Serialize;
 use rand::Rng;
 use chrono::Utc;
@@ -10,6 +10,21 @@ pub struct ImplementationStatus {
     pub code: String,
     pub generated_at: String,
     pub validated_at: Option<String>,
+}
+
+/// Crea la tabla `implementation_codes` en producción (P0-04 FIX).
+/// Se llama desde `db::init_db()` junto con otras tablas auxiliares.
+pub fn create_table(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS implementation_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            generated_at TEXT NOT NULL,
+            validated_at TEXT,
+            active INTEGER NOT NULL DEFAULT 1
+        );",
+    )?;
+    Ok(())
 }
 
 /// Genera un código único de aceptación de implementación (6 caracteres alfanuméricos)

@@ -35,6 +35,8 @@ const ForceOpenCashModal = lazy(() => import("./views/ForceOpenCashModal"));
 const HelpAssistant = lazy(() => import("./views/HelpAssistant"));
 import { useThemeStore } from "./stores/theme-store";
 import PremiumToaster from "./components/ui/PremiumToast";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { openExternal } from "./utils/openExternal";
 import {
   LayoutDashboard, Package, ShoppingCart, ClipboardList, Building2,
   Users, UserCog, Banknote, Receipt, HandCoins, FileBarChart, HardDrive,
@@ -44,7 +46,6 @@ import {
 
 interface UserInfo { id: number; full_name: string; role: string; }
 interface LicenseInfo { plan: string; activated: boolean; expires_at: string; max_users: number; days_left: number; modules: string[]; }
-interface ImplementationStatus { is_paid: boolean; code: string; generated_at: string; validated_at: string | null; }
 interface NotificationItem { type: string; message: string; priority: string; }
 
 type View = "dashboard" | "products" | "pos" | "purchases" | "services" | "quotations" | "payables" | "kardex" | "suppliers" | "cash" | "backups" | "customers" | "reports" | "users" | "expenses" | "receivables" | "employees" | "payroll" | "physical_inventory" | "audit" | "accounting" | "calendar" | "acerca";
@@ -83,7 +84,6 @@ function App() {
   const [cashOpen, setCashOpen] = useState<boolean | null>(null);
   const [forceCash, setForceCash] = useState(false);
   const [license, setLicense] = useState<LicenseInfo | null>(null);
-  const [implementationStatus, setImplementationStatus] = useState<ImplementationStatus | null>(null);
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -112,18 +112,16 @@ function App() {
         const results = await Promise.allSettled([
           invoke<boolean>("is_setup_complete"),
           invoke<LicenseInfo>("get_license_status"),
-          invoke<ImplementationStatus>("get_implementation_status"),
           invoke<string | null>("get_business_logo"),
           invoke<string | null>("get_setting", { key: "nombre_negocio" }),
         ]);
 
-        const [setupResult, licenseResult, implResult, logoResult, nameResult] = results;
+        const [setupResult, licenseResult, logoResult, nameResult] = results;
 
         if (setupResult.status === "fulfilled") setSetupComplete(setupResult.value);
         else setSetupComplete(false);
 
         if (licenseResult.status === "fulfilled" && licenseResult.value) setLicense(licenseResult.value);
-        if (implResult.status === "fulfilled" && implResult.value) setImplementationStatus(implResult.value);
         if (logoResult.status === "fulfilled" && logoResult.value) setLogoBase64(logoResult.value);
         if (nameResult.status === "fulfilled" && nameResult.value) setBusinessName(nameResult.value);
       } catch {
@@ -142,7 +140,12 @@ function App() {
         setCashOpen(openReg !== null);
         setForceCash(true);
       } catch { setCashOpen(false); setForceCash(true); }
-    } else { setCashOpen(true); setForceCash(false); }
+    } else {
+      // FIX: Para admin y otros roles, la caja no es obligatoria.
+      // Inicializar inmediatamente para evitar que el GATE 4 quede en "Verificando caja..."
+      setCashOpen(true);
+      setForceCash(false);
+    }
   };
 
   const handleSetupComplete = () => {
@@ -154,9 +157,14 @@ function App() {
   const handleLogin = (user: UserInfo) => {
     setCurrentUser(user);
     checkCashStatus(user);
-    invoke<LicenseInfo>("get_license_status")
-      .then(lic => setLicense(lic))
-      .catch(() => setLicense(null));
+    // FIX: No sobrescribir license si ya está activa. La licencia no cambia
+    // con el login. Si get_license_status falla después del login, no debe
+    // sobrescribir un license activo y reactivar el GATE 1 (pantalla de licencias).
+    if (!license?.activated) {
+      invoke<LicenseInfo>("get_license_status")
+        .then(lic => setLicense(lic))
+        .catch(() => {});
+    }
   };
 
   const handleLogout = () => {
@@ -211,7 +219,9 @@ function App() {
       </div>
     );
   }
-  if (cashOpen === null) {
+  // FIX: Solo mostrar "Verificando caja..." si forceCash es true y cashOpen aún es null.
+  // Para admins y otros roles, forceCash es false, por lo que este gate se omite.
+  if (forceCash && cashOpen === null) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
         <p className="text-secondary">Verificando caja...</p>
@@ -222,6 +232,33 @@ function App() {
   // ═══════════════════ MAIN LAYOUT ═══════════════════
   const allowed = license?.modules || [];
   const unreadCount = notifications.length;
+  // FIX: Eliminado useMemo que violaba las reglas de hooks al estar después de
+  // los return de los gates. Ahora es una variable normal calculada en cada render.
+  let currentViewComponent;
+  if (currentView === "dashboard") currentViewComponent = <DashboardView />;
+  else if (currentView === "products" && allowed.includes("products")) currentViewComponent = <ProductsView role={currentUser.role} />;
+  else if (currentView === "pos" && allowed.includes("pos")) currentViewComponent = <POSView userId={currentUser.id} />;
+  else if (currentView === "purchases" && allowed.includes("purchases")) currentViewComponent = <PurchasesView userId={currentUser.id} />;
+  else if (currentView === "services") currentViewComponent = <ServicesView />;
+  else if (currentView === "quotations") currentViewComponent = <QuotationsView />;
+  else if (currentView === "kardex") currentViewComponent = <KardexView />;
+  else if (currentView === "physical_inventory" && allowed.includes("physical_inventory") && currentUser.role === "admin") currentViewComponent = <PhysicalInventoryView />;
+  else if (currentView === "audit") currentViewComponent = <AuditView />;
+  else if (currentView === "accounting") currentViewComponent = <AccountingView />;
+  else if (currentView === "suppliers" && allowed.includes("suppliers")) currentViewComponent = <SuppliersView />;
+  else if (currentView === "payables" && allowed.includes("payables")) currentViewComponent = <PayablesView />;
+  else if (currentView === "customers" && allowed.includes("customers")) currentViewComponent = <CustomersView />;
+  else if (currentView === "employees" && allowed.includes("employees")) currentViewComponent = <EmployeesView />;
+  else if (currentView === "payroll") currentViewComponent = <PayrollView />;
+  else if (currentView === "cash" && allowed.includes("cash")) currentViewComponent = <CashView userId={currentUser.id} />;
+  else if (currentView === "expenses" && allowed.includes("expenses")) currentViewComponent = <ExpensesView userId={currentUser.id} />;
+  else if (currentView === "receivables" && allowed.includes("receivables")) currentViewComponent = <ReceivablesView />;
+  else if (currentView === "reports" && allowed.includes("reports")) currentViewComponent = <ReportsView />;
+  else if (currentView === "backups" && allowed.includes("backups")) currentViewComponent = <BackupView />;
+  else if (currentView === "calendar") currentViewComponent = <CalendarView />;
+  else if (currentView === "users" && allowed.includes("users") && currentUser.role === "admin") currentViewComponent = <UsersView />;
+  else if (currentView === "acerca") currentViewComponent = <AcercaView />;
+  else currentViewComponent = <DashboardView />;
 
   return (
     <div className="flex h-screen bg-surface text-primary">
@@ -268,10 +305,12 @@ function App() {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          <motion.a href="https://wa.me/573244826034?text=Hola%2C%20necesito%20soporte%20con%20GestaERP" target="_blank" rel="noopener noreferrer"
+          <motion.button
+            onClick={() => openExternal("https://wa.me/573244826034?text=Hola%2C%20necesito%20soporte%20con%20GestaERP")}
+            type="button"
             className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-secondary hover:bg-surface hover:text-green-500 transition-colors">
             <Headphones size={18} />{!sidebarCollapsed && "Soporte"}
-          </motion.a>
+          </motion.button>
 
           {menuItems.map((item, index) => {
             if (item.adminOnly && currentUser.role !== "admin") return null;
@@ -349,37 +388,20 @@ function App() {
           <AnimatePresence mode="wait">
             <motion.div key={currentView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2, ease: "easeOut" }} className="h-full" role="region">
-              {currentView === "dashboard" && <DashboardView />}
-              {currentView === "products" && allowed.includes("products") && <ProductsView role={currentUser.role} />}
-              {currentView === "pos" && allowed.includes("pos") && <POSView userId={currentUser.id} />}
-              {currentView === "purchases" && allowed.includes("purchases") && <PurchasesView userId={currentUser.id} />}
-              {currentView === "services" && <ServicesView />}
-              {currentView === "quotations" && <QuotationsView />}
-              {currentView === "kardex" && <KardexView />}
-              {currentView === "physical_inventory" && allowed.includes("physical_inventory") && currentUser.role === "admin" && <PhysicalInventoryView />}
-              {currentView === "audit" && <AuditView />}
-              {currentView === "accounting" && <AccountingView />}
-              {currentView === "suppliers" && allowed.includes("suppliers") && <SuppliersView />}
-              {currentView === "payables" && allowed.includes("payables") && <PayablesView />}
-              {currentView === "customers" && allowed.includes("customers") && <CustomersView />}
-              {currentView === "employees" && allowed.includes("employees") && <EmployeesView />}
-              {currentView === "payroll" && allowed.includes("payroll") && <PayrollView />}
-              {currentView === "cash" && allowed.includes("cash") && <CashView userId={currentUser.id} />}
-              {currentView === "expenses" && allowed.includes("expenses") && <ExpensesView userId={currentUser.id} />}
-              {currentView === "receivables" && allowed.includes("receivables") && <ReceivablesView />}
-              {currentView === "reports" && allowed.includes("reports") && <ReportsView />}
-              {currentView === "backups" && allowed.includes("backups") && <BackupView />}
-              {currentView === "calendar" && <CalendarView />}
-              {currentView === "users" && allowed.includes("users") && currentUser.role === "admin" && <UsersView />}
-              {currentView === "acerca" && <AcercaView />}
+              {/* P2-02 FIX: ErrorBoundary captura errores de renderizado de cada vista */}
+              <ErrorBoundary>
+                {currentViewComponent}
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </Suspense>
 
-        <a href="https://wa.me/573244826034?text=Hola%2C%20necesito%20soporte%20con%20GestaERP" target="_blank" rel="noopener noreferrer"
+        <button
+          onClick={() => openExternal("https://wa.me/573244826034?text=Hola%2C%20necesito%20soporte%20con%20GestaERP")}
+          type="button"
           className="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all hover:scale-110" title="Soporte por WhatsApp">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        </a>
+        </button>
       </main>
       <HelpAssistant />
     </div>

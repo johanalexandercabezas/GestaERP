@@ -8,6 +8,8 @@ use rusqlite::Connection;
 
 #[tauri::command]
 pub fn create_product(state: State<AppState>, sku: String, name: String, description: Option<String>, price: String, cost: String, stock: String, min_stock: String, max_stock: String, iva_percent: String, unit: String) -> Result<i64, String> {
+    // P1-01 FIX: Requiere rol admin para crear productos (antes solo sesión)
+    auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
     let price = parse_f64(&price, "precio")?;
     let cost = parse_f64(&cost, "costo")?;
@@ -38,6 +40,8 @@ pub fn list_products(state: State<AppState>) -> Result<Vec<products::Product>, S
 
 #[tauri::command]
 pub fn update_product(state: State<AppState>, id: i64, sku: String, name: String, description: Option<String>, price: String, cost: String, stock: String, min_stock: String, max_stock: String, iva_percent: String, active: bool, unit: String) -> Result<(), String> {
+    // P1-01 FIX: Requiere rol admin para modificar productos
+    auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
     let price = parse_f64(&price, "precio")?;
     let cost = parse_f64(&cost, "costo")?;
@@ -61,6 +65,8 @@ pub fn update_product(state: State<AppState>, id: i64, sku: String, name: String
 
 #[tauri::command]
 pub fn delete_product(state: State<AppState>, id: i64) -> Result<(), String> {
+    // P1-01 FIX: Requiere rol admin para eliminar productos
+    auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     products::delete_product(&conn, id).map_err(|e| {

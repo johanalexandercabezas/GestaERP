@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuthStore } from "../stores/useAuthStore";
 
 export default function LoginPage() {
-  const { login, error, loading } = useAuthStore();
+  const { login, error, isLoading: loading } = useAuthStore();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -13,7 +13,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -89,11 +89,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Credenciales por defecto */}
           <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Primer inicio de sesion:</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Usuario: <span className="font-mono">admin</span></p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Contrasena: <span className="font-mono">admin123</span></p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Acceso seguro</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Usa las credenciales que definiste durante la configuración inicial del sistema.</p>
           </div>
         </div>
 

@@ -187,7 +187,9 @@ pub fn reset_database(state: State<AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn get_desktop_path() -> Result<String, String> {
+pub fn get_desktop_path(state: State<AppState>) -> Result<String, String> {
+    // P1-03 FIX: Requiere sesión para no exponer rutas del sistema a IPC sin autenticar
+    auth_guard::require_auth(&state)?;
     let home = dirs::home_dir().ok_or("No se encontró el directorio home")?;
     let desktop = home.join("Desktop");
     if !desktop.exists() {

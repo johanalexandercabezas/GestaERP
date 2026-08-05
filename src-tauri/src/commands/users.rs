@@ -3,10 +3,38 @@ use crate::AppState;
 use crate::auth_guard;
 
 #[tauri::command]
+pub fn create_bootstrap_admin(state: State<AppState>, username: String, password: String, full_name: String) -> Result<bool, String> {
+    let username_clean = crate::validation::validate_username(&username)?;
+    crate::validation::validate_password(&password)?;
+    let full_name_clean = full_name.trim();
+    if full_name_clean.is_empty() {
+        return Err("El nombre completo es obligatorio".to_string());
+    }
+    if password.len() < 8 || !password.chars().any(|c| c.is_uppercase()) || !password.chars().any(|c| c.is_lowercase()) || !password.chars().any(|c| c.is_numeric()) {
+        return Err("La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas y números".to_string());
+    }
+
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0)).unwrap_or(0);
+    if user_count > 0 {
+        return Ok(false);
+    }
+
+    let req = crate::users::CreateUserRequest {
+        username: username_clean,
+        password,
+        full_name: full_name_clean.to_string(),
+        role: "admin".to_string(),
+    };
+    crate::users::create_user(&conn, &req).map_err(|e| format!("Error al crear el primer administrador: {}", e))?;
+    Ok(true)
+}
+
+#[tauri::command]
 pub fn create_user(state: State<AppState>, username: String, password: String, full_name: String, role: String) -> Result<i64, String> {
     auth_guard::require_admin(&state)?;
     // Defensivo: impedir que el frontend fuerce un rol distinto de los válidos
-    if !matches!(role.as_str(), "admin" | "cashier") {
+    if !matches!(role.as_str(), "admin" | "subadmin" | "vendedor" | "asistente") {
         return Err("Rol inválido".to_string());
     }
     let conn = state.db.lock().map_err(|e| e.to_string())?;

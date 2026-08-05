@@ -3,6 +3,8 @@
   "description": "Permisos base para GestaERP",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "opener:default",
+    "updater:default"
   ]
 }

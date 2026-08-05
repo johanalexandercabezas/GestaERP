@@ -3,17 +3,21 @@ use crate::AppState;
 use crate::auth_guard;
 use serde::{Deserialize, Serialize};
 
+/// Fila de auditoría alineada con el schema REAL de MIGRATION_004:
+/// audit_logs(id, user_id, username, table_name, record_id, action,
+///            old_values, new_values, created_at, machine_name)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuditLogRow {
     pub id: i64,
     pub user_id: Option<i64>,
     pub username: Option<String>,
-    pub action_type: String,
-    pub entity_type: String,
-    pub entity_id: Option<i64>,
-    pub details: Option<String>,
-    pub ip_address: Option<String>,
+    pub table_name: Option<String>,
+    pub record_id: Option<i64>,
+    pub action: String,
+    pub old_values: Option<String>,
+    pub new_values: Option<String>,
     pub created_at: String,
+    pub machine_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,16 +29,17 @@ pub struct AuditSummary {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TypeCount {
-    pub action_type: String,
+    pub action: String,
     pub count: i64,
 }
 
+/// P0-02 FIX: Filtros por tabla, entidad y acción alineados al schema real.
 #[tauri::command]
 pub fn get_audit_logs(
     state: State<AppState>,
     user_id: Option<i64>,
-    action_type: Option<String>,
-    entity_type: Option<String>,
+    table_name: Option<String>,
+    action: Option<String>,
     start_date: Option<String>,
     end_date: Option<String>,
     limit: Option<i64>,
@@ -49,13 +54,13 @@ pub fn get_audit_logs(
         conditions.push("l.user_id = ?".to_string());
         params.push(Box::new(uid));
     }
-    if let Some(ref at) = action_type {
-        conditions.push("l.action_type = ?".to_string());
-        params.push(Box::new(at.clone()));
+    if let Some(ref tn) = table_name {
+        conditions.push("l.table_name = ?".to_string());
+        params.push(Box::new(tn.clone()));
     }
-    if let Some(ref et) = entity_type {
-        conditions.push("l.entity_type = ?".to_string());
-        params.push(Box::new(et.clone()));
+    if let Some(ref act) = action {
+        conditions.push("l.action = ?".to_string());
+        params.push(Box::new(act.clone()));
     }
     if let Some(ref sd) = start_date {
         conditions.push("date(l.created_at) >= ?".to_string());
@@ -74,9 +79,9 @@ pub fn get_audit_logs(
 
     let limit_val = limit.unwrap_or(100);
     let query = format!(
-        "SELECT l.id, l.user_id, COALESCE(u.username, 'Desconocido') as username, l.action_type, l.entity_type, l.entity_id, l.details, l.ip_address, l.created_at
-         FROM audit_logs l
-         LEFT JOIN users u ON u.id = l.user_id
+        "SELECT l.id, l.user_id, COALESCE(l.username, 'Desconocido') as username, \
+         l.table_name, l.record_id, l.action, l.old_values, l.new_values, l.created_at, l.machine_name \
+         FROM audit_logs l \
          {} ORDER BY l.created_at DESC LIMIT ?",
         where_clause
     );
@@ -89,12 +94,13 @@ pub fn get_audit_logs(
             id: row.get(0)?,
             user_id: row.get(1)?,
             username: row.get(2)?,
-            action_type: row.get(3)?,
-            entity_type: row.get(4)?,
-            entity_id: row.get(5)?,
-            details: row.get(6)?,
-            ip_address: row.get(7)?,
+            table_name: row.get(3)?,
+            record_id: row.get(4)?,
+            action: row.get(5)?,
+            old_values: row.get(6)?,
+            new_values: row.get(7)?,
             created_at: row.get(8)?,
+            machine_name: row.get(9)?,
         })
     }).map_err(|e| e.to_string())?;
 
@@ -119,12 +125,12 @@ pub fn get_audit_summary(state: State<AppState>) -> Result<AuditSummary, String>
     ).map_err(|e| e.to_string())?;
 
     let mut stmt = conn.prepare(
-        "SELECT action_type, COUNT(*) as cnt FROM audit_logs GROUP BY action_type ORDER BY cnt DESC LIMIT 10"
+        "SELECT action, COUNT(*) as cnt FROM audit_logs GROUP BY action ORDER BY cnt DESC LIMIT 10",
     ).map_err(|e| e.to_string())?;
 
     let events_by_type = stmt.query_map([], |row| {
         Ok(TypeCount {
-            action_type: row.get(0)?,
+            action: row.get(0)?,
             count: row.get(1)?,
         })
     }).map_err(|e| e.to_string())?;
@@ -138,31 +144,38 @@ pub fn get_audit_summary(state: State<AppState>) -> Result<AuditSummary, String>
     })
 }
 
+/// P1-02 FIX: Se añade require_admin para proteger la exportación de datos sensibles.
 #[tauri::command]
 pub fn export_audit_logs_csv(
     state: State<AppState>,
     start_date: Option<String>,
     end_date: Option<String>,
 ) -> Result<(String, String), String> {
+    // Seguridad: solo administradores pueden exportar el registro completo de auditoría
+    auth_guard::require_admin(&state)?;
+
     let logs = get_audit_logs(
         state,
-        None, None, None,
+        None,
+        None,
+        None,
         start_date.clone(),
         end_date.clone(),
         Some(10000),
     )?;
 
-    let mut csv = String::from("Fecha,Usuario,Tipo Acción,Tipo Entidad,Entidad ID,Detalles,IP\n");
+    let mut csv = String::from("Fecha,Usuario,Tabla,Registro,Acción,Valores Anteriores,Valores Nuevos,Máquina\n");
     for log in &logs {
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{}\n",
             log.created_at,
             log.username.clone().unwrap_or_default(),
-            log.action_type,
-            log.entity_type,
-            log.entity_id.unwrap_or_default(),
-            log.details.clone().unwrap_or_default().replace(',', ";"),
-            log.ip_address.clone().unwrap_or_default()
+            log.table_name.clone().unwrap_or_default(),
+            log.record_id.unwrap_or_default(),
+            log.action,
+            log.old_values.clone().unwrap_or_default().replace(',', ";"),
+            log.new_values.clone().unwrap_or_default().replace(',', ";"),
+            log.machine_name.clone().unwrap_or_default().replace(',', ";"),
         ));
     }
 

@@ -1,13 +1,17 @@
 {
   "name": "gestaerp",
   "private": true,
-"version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "bump:patch": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[2]++;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
+    "bump:minor": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[1]++;v[2]=0;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
+    "bump:major": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[0]++;v[1]=0;v[2]=0;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
+    "release": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version;console.log('Creating release v'+v+'...');console.log('Run: git add -A && git commit -m release:v'+v+' && git tag v'+v+' && git push --tags')\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -41,6 +45,6 @@
     "tailwindcss": "^4.3.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
-    "vitest": "^4.0.0"
+    "vitest": "^3.2.7"
   }
 }

@@ -5,22 +5,24 @@ import { Download, Search, Shield, Activity, FileSpreadsheet } from "lucide-reac
 import PremiumButton from "../components/ui/PremiumButton";
 import { showToast } from "../components/ui/PremiumToast";
 
+// P0-02 FIX: Interfaz alineada al schema REAL de audit_logs
 interface AuditLog {
   id: number;
   user_id: number | null;
   username: string | null;
-  action_type: string;
-  entity_type: string;
-  entity_id: number | null;
-  details: string | null;
-  ip_address: string | null;
+  table_name: string | null;
+  record_id: number | null;
+  action: string;
+  old_values: string | null;
+  new_values: string | null;
   created_at: string;
+  machine_name: string | null;
 }
 
 interface AuditSummary {
   total_events: number;
   today_events: number;
-  events_by_type: { action_type: string; count: number }[];
+  events_by_type: { action: string; count: number }[];
 }
 
 export default function AuditView() {
@@ -30,6 +32,7 @@ export default function AuditView() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [tableFilter, setTableFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -53,7 +56,8 @@ export default function AuditView() {
         user_id: userId ? parseInt(userId) : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
-        action_type: actionFilter || undefined,
+        action: actionFilter || undefined,
+        table_name: tableFilter || undefined,
         limit: 200,
       });
       setLogs(data);
@@ -88,11 +92,13 @@ export default function AuditView() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("es-CO");
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString("es-CO");
   };
 
-  const getActionColor = (type: string) => {
-    switch (type.toLowerCase()) {
+  const getActionColor = (action: string) => {
+    switch (action.toLowerCase()) {
       case "login":
       case "logout":
         return "bg-blue-100 text-blue-800";
@@ -152,7 +158,7 @@ export default function AuditView() {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {summary.events_by_type.slice(0, 4).map((et, i) => (
                     <span key={i} className="text-xs bg-input px-2 py-0.5 rounded-full text-primary">
-                      {et.action_type}
+                      {et.action}
                     </span>
                   ))}
                 </div>
@@ -164,7 +170,7 @@ export default function AuditView() {
 
       {/* Filters */}
       <div className="bg-card border border-theme rounded-xl p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm text-secondary mb-1">Usuario ID</label>
             <input
@@ -208,6 +214,16 @@ export default function AuditView() {
               <option value="delete">Eliminar</option>
             </select>
           </div>
+          <div>
+            <label className="block text-sm text-secondary mb-1">Tabla</label>
+            <input
+              type="text"
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              placeholder="products, sales..."
+              className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+            />
+          </div>
           <div className="flex items-end">
             <PremiumButton onClick={loadLogs} loading={loading}>
               <Search size={18} className="mr-2" />
@@ -234,9 +250,9 @@ export default function AuditView() {
                   <th className="p-3">ID</th>
                   <th className="p-3">Usuario</th>
                   <th className="p-3">Acción</th>
-                  <th className="p-3">Entidad</th>
+                  <th className="p-3">Tabla</th>
+                  <th className="p-3">Registro</th>
                   <th className="p-3">Detalle</th>
-                  <th className="p-3">IP</th>
                   <th className="p-3">Fecha</th>
                 </tr>
               </thead>
@@ -257,17 +273,17 @@ export default function AuditView() {
                         <span className="text-primary font-medium">{log.username || `Usuario ${log.user_id}`}</span>
                       </td>
                       <td className="p-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getActionColor(log.action_type)}`}>
-                          {log.action_type}
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getActionColor(log.action)}`}>
+                          {log.action}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className="text-xs bg-input px-2 py-1 rounded">{log.entity_type}</span>
+                        <span className="text-xs bg-input px-2 py-1 rounded">{log.table_name || "—"}</span>
                       </td>
-                      <td className="p-3 text-xs text-secondary max-w-xs truncate" title={log.details || ""}>
-                        {log.details || "—"}
+                      <td className="p-3 font-mono text-xs">{log.record_id ?? "—"}</td>
+                      <td className="p-3 text-xs text-secondary max-w-xs truncate" title={log.new_values || log.old_values || ""}>
+                        {log.new_values || log.old_values || "—"}
                       </td>
-                      <td className="p-3 font-mono text-xs text-secondary">{log.ip_address || "—"}</td>
                       <td className="p-3 text-xs">{formatDate(log.created_at)}</td>
                     </motion.tr>
                   ))}

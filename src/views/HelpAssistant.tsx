@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageCircle, X, Search, ChevronDown, ChevronUp, Headphones, Mail, Globe, Phone } from "lucide-react";
 import faqData from "../data/faq.json";
+import { openExternal } from "../utils/openExternal";
 
 interface FAQItem {
   q: string;
@@ -43,9 +44,9 @@ export default function HelpAssistant() {
     setExpanded(expanded === index ? null : index);
   };
 
-  // Abrir URL en navegador externo (WhatsApp, web, email)
+  // FIX SOPORTE: Abrir URL con el plugin opener de Tauri (navegador real)
   const handleOpenUrl = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternal(url);
   };
 
   // Cerrar al hacer clic fuera

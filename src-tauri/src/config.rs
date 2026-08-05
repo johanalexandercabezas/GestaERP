@@ -16,7 +16,7 @@ use std::env;
 use std::sync::OnceLock;
 
 // ============================================================
-// Valores por defecto (solo para desarrollo/transición)
+// Valores por defecto (SOLO para desarrollo/transición)
 // ============================================================
 const DEFAULT_SECRET_KEY: &str = "GestaERP_2026_SecureKey_Colombia";
 const DEFAULT_DB_PEPPER: &str = "GestaERP_Colombia_2026_DB_PEPPER";
@@ -30,6 +30,30 @@ const DEFAULT_ENV: &str = "development";
 static SECRET_KEY: OnceLock<String> = OnceLock::new();
 static DB_PEPPER: OnceLock<String> = OnceLock::new();
 
+/// P0-01 FIX: En producción, se rechazan los valores por defecto.
+/// Esto fuerza al operador a configurar GESTAERP_SECRET_KEY/GESTAERP_DB_PEPPER
+/// con valores aleatorios únicos, evitando forjar licencias o descifrar la BD.
+fn is_default_secret(value: &str) -> bool {
+    value == DEFAULT_SECRET_KEY || value == DEFAULT_DB_PEPPER
+}
+
+/// Si el entorno es producción y se usa un secreto por defecto, aborta con error claro.
+fn validate_production_secrets() {
+    if get_env() == "production" {
+        if is_default_secret(get_secret_key()) || is_default_secret(get_db_pepper()) {
+            eprintln!(
+                "======================================================================\n\
+                 [SEGURIDAD] Error de configuración en entorno PRODUCCIÓN:\n\
+                 GESTAERP_SECRET_KEY y GESTAERP_DB_PEPPER deben ser valores aleatorios\n\
+                 únicos por instalación. Ejecuta el generador de claves seguro antes\n\
+                 de desplegar. Ver .env para configurar.\n\
+                 ======================================================================"
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
 /// Inicializa la configuración cargando variables de entorno.
 /// Debe llamarse al inicio de `main()`.
 pub fn init() {
@@ -42,6 +66,9 @@ pub fn init() {
     // Precargar valores en caché para acceso rápido
     let _ = get_secret_key();
     let _ = get_db_pepper();
+
+    // P0-01 FIX: Rechazar secretos por defecto en producción
+    validate_production_secrets();
 
     log::info!(
         "[GestaERP] Iniciando — Entorno: {} | Log: {}",

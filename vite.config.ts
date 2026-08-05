@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -8,6 +8,17 @@ const host = process.env.TAURI_DEV_HOST as string | undefined;
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
+  // FIX AUDITORÍA (P1-Testing):
+  // Vitest 4.x no carga correctamente un `vitest.config.ts` separado en este entorno
+  // (error "Cannot read properties of undefined (reading 'config')").
+  // La configuración de test se fusiona aquí, en el vite.config.ts principal,
+  // que es donde Vitest 4.x espera encontrarla.
+  test: {
+    globals: true,
+    environment: "node",
+    include: ["src/__tests__/**/*.test.ts"],
+    setupFiles: ["src/__tests__/setup.ts"],
+  },
   server: {
     port: 1420,
     strictPort: true,

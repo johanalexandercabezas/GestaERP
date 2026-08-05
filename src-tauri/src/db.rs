@@ -69,7 +69,13 @@ pub fn open_database() -> Result<Connection> {
     let db_path = app_dir.join("gestaerp.db");
     let conn = Connection::open(&db_path)?;
     
-    // Clave derivada de la máquina: cada PC tiene una clave única
+    // P1-04 FIX: Activar integridad referencial (FOREIGN KEY enforcement)
+    // y timeout de bloqueo para operaciones concurrentes.
+    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
+    
+    // Clave derivada de la máquina: cada PC tiene una clave única.
+    // NOTA P0-06: con `rusqlite` estándar (sin feature "sqlcipher"), PRAGMA key se IGNORA.
+    // Para activar cifrado real: usar features = ["bundled", "sqlcipher"] en Cargo.toml.
     let machine_key = derive_machine_key();
     let _ = conn.pragma_update(None, "key", &machine_key);
     
@@ -701,27 +707,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn create_default_admin(conn: &Connection) -> Result<()> {
-    let admin_exists: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM users WHERE username = 'admin'",
-        [],
-        |row| row.get(0),
-    )?;
-
-    if !admin_exists {
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password("admin123".as_bytes(), &salt)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(HashError(e.to_string()))))?
-            .to_string();
-
-        conn.execute(
-            "INSERT INTO users (username, password, full_name, role) VALUES (?1, ?2, ?3, ?4)",
-            ("admin", password_hash, "Administrador", "admin"),
-        )?;
-    }
-
+fn create_default_admin(_conn: &Connection) -> Result<()> {
+    // No se crean usuarios administrativos con credenciales fijas ni predecibles.
+    // El primer administrador se crea mediante un flujo explícito y seguro en la
+    // pantalla de configuración inicial.
     Ok(())
 }
 
@@ -729,6 +718,7 @@ pub fn init_db() -> Result<Connection> {
     let conn = open_database()?;
     run_migrations(&conn)?;
     crate::calendar_notes::create_table(&conn)?;
+    crate::implementation::create_table(&conn)?;
     create_default_admin(&conn)?;
     Ok(conn)
 }

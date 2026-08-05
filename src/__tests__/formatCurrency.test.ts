@@ -3,7 +3,9 @@
  *
  * Ejecutar con: npx vitest run
  */
-import { describe, it, expect, beforeEach } from "vitest";
+// FIX AUDITORÍA (P1-Testing): Vitest 4.1.10 no resuelve los imports de "vitest"
+// correctamente (describe/it/expect devuelven undefined). Con globals:true y el
+// setup.ts, estas funciones están disponibles globalmente, por lo que no se importan.
 import { formatCOP, formatCOPDecimals } from "../utils/formatCurrency";
 
 describe("formatCOP", () => {

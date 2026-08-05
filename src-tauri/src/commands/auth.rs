@@ -8,6 +8,11 @@ use crate::rate_limiter::LOGIN_RATE_LIMITER;
 pub fn login(state: State<AppState>, username: String, password: String) -> Result<LoginResponse, String> {
     // Validar username (OWASP: Input Validation)
     let username_clean = crate::validation::validate_username(&username)?;
+    crate::validation::validate_password(&password)?;
+
+    if password.len() > 128 {
+        return Err("La contraseña no puede exceder los 128 caracteres".to_string());
+    }
     
     // Rate limiting: prevenir fuerza bruta (OWASP: A07:2021)
     let rate_key = format!("login:{}", username_clean);

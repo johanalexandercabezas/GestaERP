@@ -205,45 +205,73 @@ fn create_sale_core(
 }
 
 /// Obtiene las ventas recientes (últimas 50) con sus items.
+/// P1-06 FIX: Elimina el patrón N+1 (antes 1 query por venta + 1 por items = 51 queries).
+/// Ahora usa una sola query con JOIN y agrupación.
 pub fn get_recent_sales(conn: &Connection) -> Result<Vec<SaleWithItems>> {
+    // Una sola query: trae las 50 ventas más recientes con sus items en un solo paso.
     let mut stmt = conn.prepare(
-        "SELECT id, user_id, total, payment_method, created_at FROM sales ORDER BY id DESC LIMIT 50",
+        "SELECT s.id, s.user_id, s.total, s.payment_method, s.created_at,
+                si.id, si.sale_id, si.product_id, COALESCE(p.name, 'Producto eliminado'),
+                si.quantity, si.unit_price, si.total_price
+         FROM sales s
+         LEFT JOIN sale_items si ON si.sale_id = s.id
+         LEFT JOIN products p ON p.id = si.product_id
+         WHERE s.id IN (SELECT id FROM sales ORDER BY id DESC LIMIT 50)
+         ORDER BY s.id DESC, si.id ASC",
     )?;
-    let sales = stmt.query_map([], |row| {
-        Ok(Sale {
+
+    let rows = stmt.query_map([], |row| {
+        let sale = Sale {
             id: row.get(0)?,
             user_id: row.get(1)?,
             total: row.get(2)?,
             payment_method: row.get(3)?,
             created_at: row.get(4)?,
-        })
+        };
+        // Si no hay item (LEFT JOIN sin match), sale_item_id es NULL → item = None
+        let item_id: Option<i64> = row.get(5)?;
+        let item = if item_id.is_some() {
+            Some(SaleItem {
+                id: item_id.unwrap(),
+                sale_id: row.get(6)?,
+                product_id: row.get(7)?,
+                product_name: row.get(8)?,
+                quantity: row.get(9)?,
+                unit_price: row.get(10)?,
+                total_price: row.get(11)?,
+            })
+        } else {
+            None
+        };
+        Ok((sale, item))
     })?;
 
-    let mut result = Vec::new();
-    for sale in sales {
-        let sale = sale?;
-        let mut item_stmt = conn.prepare(
-            "SELECT si.id, si.sale_id, si.product_id, p.name, si.quantity, si.unit_price, si.total_price
-             FROM sale_items si JOIN products p ON p.id = si.product_id
-             WHERE si.sale_id = ?1",
-        )?;
-        let items = item_stmt.query_map([sale.id], |row| {
-            Ok(SaleItem {
-                id: row.get(0)?,
-                sale_id: row.get(1)?,
-                product_id: row.get(2)?,
-                product_name: row.get(3)?,
-                quantity: row.get(4)?,
-                unit_price: row.get(5)?,
-                total_price: row.get(6)?,
-            })
-        })?;
-        let items: Result<Vec<SaleItem>> = items.collect();
-        result.push(SaleWithItems {
-            sale,
-            items: items?,
-        });
+    // Agrupar items por venta
+    let mut result: Vec<SaleWithItems> = Vec::new();
+    let mut current: Option<SaleWithItems> = None;
+    for row in rows {
+        let (sale, item) = row?;
+        match &mut current {
+            Some(sw) if sw.sale.id == sale.id => {
+                if let Some(it) = item {
+                    sw.items.push(it);
+                }
+            }
+            _ => {
+                if let Some(prev) = current.take() {
+                    result.push(prev);
+                }
+                current = Some(SaleWithItems {
+                    sale,
+                    items: item.into_iter().collect(),
+                });
+            }
+        }
     }
+    if let Some(prev) = current.take() {
+        result.push(prev);
+    }
+
     Ok(result)
 }
 

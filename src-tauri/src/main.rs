@@ -177,6 +177,8 @@ fn main() {
 
     let conn = db::init_db().expect("No se pudo inicializar la base de datos");
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { db: Mutex::new(conn), current_user: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![
             commands::auth::login, commands::auth::get_current_user, commands::auth::logout,
@@ -192,7 +194,7 @@ fn main() {
             print_ticket,
             commands::customers::create_customer, commands::customers::list_customers, commands::customers::update_customer, commands::customers::delete_customer,
             commands::reports::generate_sales_report, commands::reports::export_report_to_csv,
-            commands::users::create_user, commands::users::list_users, commands::users::update_user, commands::users::delete_user,
+            commands::users::create_bootstrap_admin, commands::users::create_user, commands::users::list_users, commands::users::update_user, commands::users::delete_user,
             commands::expenses::create_expense, commands::expenses::list_expenses,
             commands::receivables::list_receivables, commands::receivables::register_payment,
             commands::employees::create_employee, commands::employees::list_employees, commands::employees::update_employee, commands::employees::delete_employee,

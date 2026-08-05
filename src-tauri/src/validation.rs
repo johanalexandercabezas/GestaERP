@@ -55,14 +55,20 @@ pub fn validate_username(value: &str) -> Result<String, String> {
     Ok(cleaned)
 }
 
-/// Valida una contraseña: mínimo 6 caracteres, máximo 128.
+/// Valida una contraseña: mínimo 8 caracteres, máximo 128, con mezcla de clases.
 #[allow(dead_code)]
 pub fn validate_password(value: &str) -> Result<(), String> {
-    if value.len() < 6 {
-        return Err("La contraseña debe tener al menos 6 caracteres".to_string());
+    if value.len() < 8 {
+        return Err("La contraseña debe tener al menos 8 caracteres".to_string());
     }
     if value.len() > 128 {
         return Err("La contraseña no puede exceder los 128 caracteres".to_string());
+    }
+    let has_upper = value.chars().any(|c| c.is_uppercase());
+    let has_lower = value.chars().any(|c| c.is_lowercase());
+    let has_digit = value.chars().any(|c| c.is_numeric());
+    if !(has_upper && has_lower && has_digit) {
+        return Err("La contraseña debe incluir mayúsculas, minúsculas y números".to_string());
     }
     Ok(())
 }
@@ -187,7 +193,17 @@ mod tests {
 
     #[test]
     fn test_validate_password_valid() {
-        assert!(validate_password("123456").is_ok());
+        // Política de seguridad: 8+ chars con mayúsculas, minúsculas y números
+        assert!(validate_password("Admin123").is_ok());
+        assert!(validate_password("Segura2026!").is_ok());
+    }
+
+    #[test]
+    fn test_validate_password_requires_complexity() {
+        // Solo números (sin mayúsculas/minúsculas) debe fallar
+        assert!(validate_password("12345678").is_err());
+        // Solo minúsculas (sin mayúsculas ni números) debe fallar
+        assert!(validate_password("solominusculas").is_err());
     }
 
     #[test]

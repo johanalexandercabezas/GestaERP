@@ -35,6 +35,24 @@ fn backups_dir() -> String {
         .to_string()
 }
 
+/// P0-05 FIX: Valida que un nombre de archivo no contenga path traversal.
+/// Solo permite nombres de archivo simples (sin separadores de ruta).
+fn validate_backup_filename(filename: &str) -> Result<(), String> {
+    let name = Path::new(filename);
+    if name.components().count() != 1 {
+        return Err("Nombre de archivo inválido para backup".to_string());
+    }
+    // Rechazar cualquier separador de ruta (Windows y Unix)
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err("Nombre de archivo no permitido".to_string());
+    }
+    // Rechazar caracteres peligrosos de Windows
+    if filename.chars().any(|c| matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|')) {
+        return Err("Nombre de archivo no permitido".to_string());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 fn backups_dir() -> String {
     let mut path = std::env::current_dir().unwrap();
@@ -123,6 +141,7 @@ pub fn list_backups() -> Result<Vec<BackupInfo>, String> {
 }
 
 pub fn restore_backup(filename: &str) -> Result<(), String> {
+    validate_backup_filename(filename)?;
     eprintln!("[BACKUP] Restaurando backup: {}", filename);
     let dir_str = backups_dir();
     let dir = Path::new(&dir_str);
@@ -143,6 +162,7 @@ pub fn restore_backup(filename: &str) -> Result<(), String> {
 }
 
 pub fn delete_backup(filename: &str) -> Result<(), String> {
+    validate_backup_filename(filename)?;
     eprintln!("[BACKUP] Eliminando backup: {}", filename);
     let dir_str = backups_dir();
     let dir = Path::new(&dir_str);
@@ -156,6 +176,7 @@ pub fn delete_backup(filename: &str) -> Result<(), String> {
 
 /// Exporta un backup al Escritorio (o ruta especificada) para migración a otro PC
 pub fn export_backup_to_path(filename: &str, dest_path: &str) -> Result<BackupInfo, String> {
+    validate_backup_filename(filename)?;
     eprintln!("[BACKUP] Exportando backup {} hacia {}", filename, dest_path);
     let backups = list_backups()?;
     let found = backups.iter().find(|b| b.filename == filename)

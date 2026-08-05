@@ -4,7 +4,7 @@ import { showToast } from "../components/ui/PremiumToast";
 import PremiumButton from "../components/ui/PremiumButton";
 import PremiumModal from "../components/ui/PremiumModal";
 import { motion } from "framer-motion";
-import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Info, Heart, ExternalLink, ClipboardCheck, Sparkles } from "lucide-react";
+import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Heart, ExternalLink, ClipboardCheck, Sparkles } from "lucide-react";
 
 interface Props {
   onActivated: () => void;

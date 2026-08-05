@@ -49,6 +49,8 @@ export default function POSView({ userId: _userId }: POSViewProps) {
   const [processing, setProcessing] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // P2-03 FIX: Debounce para evitar llamar search_products en cada keystroke
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Estados para nuevo cliente rápido
   const [showNewCustomer, setShowNewCustomer] = useState(false);
@@ -124,7 +126,12 @@ export default function POSView({ userId: _userId }: POSViewProps) {
     setError("");
   };
 
-  const handleInputChange = (value: string) => { setSkuInput(value); fetchSuggestions(value); };
+  const handleInputChange = (value: string) => {
+    setSkuInput(value);
+    // P2-03 FIX: Debounce de 300ms — solo busca cuando el usuario deja de escribir
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && suggestions.length > 0) { e.preventDefault(); addToCart(suggestions[0]); }
   };
@@ -136,7 +143,11 @@ export default function POSView({ userId: _userId }: POSViewProps) {
       if (e.key === "F1") { e.preventDefault(); searchInputRef.current?.focus(); }
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Limpiar el timer de debounce al desmontar
+    return () => {
+      window.removeEventListener("keydown", handler);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [cart, showPayment]);
 
   const handleCheckout = () => {

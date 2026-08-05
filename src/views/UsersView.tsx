@@ -36,7 +36,7 @@ export default function UsersView() {
     setUsername("");
     setPassword("");
     setFullName("");
-    setRole("cashier");
+    setRole("vendedor");
     setActive(true);
     setNewPassword("");
     setError("");

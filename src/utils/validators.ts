@@ -15,11 +15,14 @@ export function validarDigitoVerificadorNIT(nit: string): boolean {
   const digitoVerificador = nitLimpio.charAt(nitLimpio.length - 1).toUpperCase();
   const numeroBase = nitLimpio.slice(0, -1);
 
-  const multiplicadores = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+  // FIX: Los multiplicadores del NIT colombiano se aplican de IZQUIERDA a DERECHA
+  // (no de derecha a izquierda como estaba antes). Esto causaba que NITs válidos
+  // como 901322630-1 fallaran la validación.
+  const multiplicadores = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
   let suma = 0;
 
   for (let i = 0; i < numeroBase.length; i++) {
-    const digito = parseInt(numeroBase.charAt(numeroBase.length - 1 - i), 10);
+    const digito = parseInt(numeroBase.charAt(i), 10);
     suma += digito * multiplicadores[i % multiplicadores.length];
   }
 

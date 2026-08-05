@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
+import { validateBootstrapAdminInput } from "../utils/authBootstrap";
 
 interface SetupViewProps {
   onComplete: () => void;
@@ -25,6 +26,10 @@ export default function SetupView({ onComplete }: SetupViewProps) {
   const [email, setEmail] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [bootstrapUsername, setBootstrapUsername] = useState("admin");
+  const [bootstrapPassword, setBootstrapPassword] = useState("");
+  const [bootstrapConfirmPassword, setBootstrapConfirmPassword] = useState("");
+  const [bootstrapFullName, setBootstrapFullName] = useState("Administrador principal");
 
   // Logo (opcional)
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -74,6 +79,18 @@ export default function SetupView({ onComplete }: SetupViewProps) {
       setError(`Faltan los siguientes campos obligatorios: ${names}`);
       return;
     }
+
+    const bootstrapErrors = validateBootstrapAdminInput({
+      username: bootstrapUsername,
+      password: bootstrapPassword,
+      confirmPassword: bootstrapConfirmPassword,
+      fullName: bootstrapFullName,
+    });
+    if (bootstrapErrors.length > 0) {
+      setError(bootstrapErrors.join(" | "));
+      return;
+    }
+
     setGuardando(true);
     setError("");
     try {
@@ -81,6 +98,11 @@ export default function SetupView({ onComplete }: SetupViewProps) {
       if (logoBytes) {
         await invoke("upload_business_logo", { logoBytes });
       }
+      await invoke("create_bootstrap_admin", {
+        username: bootstrapUsername,
+        password: bootstrapPassword,
+        fullName: bootstrapFullName,
+      });
       onComplete();
     } catch (e) {
       setError("Error al guardar: " + e);
@@ -215,6 +237,17 @@ export default function SetupView({ onComplete }: SetupViewProps) {
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${iva ? "bg-accent" : "bg-muted"}`}>
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${iva ? "translate-x-6" : "translate-x-1"}`} />
             </button>
+          </div>
+
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+            <h2 className="text-sm font-semibold text-primary">Crear primer administrador</h2>
+            <p className="text-xs text-secondary mt-1">Este usuario será el primer acceso al ERP y se creará con una contraseña segura.</p>
+            <div className="mt-3 grid gap-3">
+              <input type="text" value={bootstrapFullName} onChange={(e) => setBootstrapFullName(e.target.value)} className="w-full px-4 py-2.5 bg-input border border-theme rounded-lg text-primary" placeholder="Nombre completo" />
+              <input type="text" value={bootstrapUsername} onChange={(e) => setBootstrapUsername(e.target.value)} className="w-full px-4 py-2.5 bg-input border border-theme rounded-lg text-primary" placeholder="Usuario" />
+              <input type="password" value={bootstrapPassword} onChange={(e) => setBootstrapPassword(e.target.value)} className="w-full px-4 py-2.5 bg-input border border-theme rounded-lg text-primary" placeholder="Contraseña segura" />
+              <input type="password" value={bootstrapConfirmPassword} onChange={(e) => setBootstrapConfirmPassword(e.target.value)} className="w-full px-4 py-2.5 bg-input border border-theme rounded-lg text-primary" placeholder="Confirmar contraseña" />
+            </div>
           </div>
 
           {/* Campos faltantes */}
