@@ -1,86 +1,333 @@
-╔══════════════════════════════════════════════════════════════╗
-║     GESTAERP - GUÍA INTERNA PARA GESTASOFTTECH              ║
-║     ----------------------------------------                ║
-║     Procedimientos para entrega, claves y compilación       ║
-╚══════════════════════════════════════════════════════════════╝
+================================================================
+  GESTAERP v1.0.1 — GUÍA PARA GESTASOFTTECH (DESARROLLADOR)
+  Documento interno de desarrollo y producción
+  Última actualización: Agosto 2026
+================================================================
 
-📌 VERSIÓN: 0.1.0
-📌 DESARROLLADOR: Johan Alexander Cabezas Huila - CEO
-📌 EMPRESA: GestaSoftTech
-📌 SITIO WEB: www.fundasopaco.org
+ESTE DOCUMENTO ES INTERNO DE GESTASOFTTECH S.A.S.
+NO DISTRIBUIR A CLIENTES FINALES.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. GENERAR CLAVES DE ACTIVACIÓN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Contiene TODOS los comandos necesarios para desarrollo,
+testing, generación de builds, versionamiento y despliegue
+de producción con actualización automática.
 
-   cd C:\Users\tu_usuario\Downloads\GestaERP
-   cargo run --bin generate_keys <plan>
+----------------------------------------------------------------
+1. REQUISITOS DEL ENTORNO DE DESARROLLO
+----------------------------------------------------------------
 
-   EJEMPLOS:
-   cargo run --bin generate_keys basico     → GESTA-BAS-XXX
-   cargo run --bin generate_keys intermedio → GESTA-INT-XXX
-   cargo run --bin generate_keys avanzado   → GESTA-AVZ-XXX
-   cargo run --bin generate_keys ong        → GESTA-ONG-XXX
-   cargo run --bin generate_keys avanzado 90→ 90 días
+- Node.js 22+ (https://nodejs.org)
+- Rust 1.85+ (https://rustup.rs) con target MSVC
+- Tauri CLI v2
+- Visual Studio 2022 Build Tools (MSVC)
+- Git
+- SQLite (no requiere instalación, se compila bundled)
 
-   Las claves son válidas por 5 días.
+VERIFICAR INSTALACIÓN:
+  node --version
+  cargo --version
+  rustc --version
+  npm --version
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-2. COMPILAR PARA ENTREGAR AL CLIENTE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------------
+2. INSTALACIÓN DE DEPENDENCIAS
+----------------------------------------------------------------
 
-   PASO 1: Eliminar BD de pruebas
-      del /f /q src-tauri\app.db
+PRIMERA VEZ (inicializar):
+  npm install
+  cargo build --manifest-path src-tauri/Cargo.toml
 
-   PASO 2: Limpiar compilación
-      cargo clean --manifest-path src-tauri/Cargo.toml
+TRAS CAMBIAR package.json:
+  npm install
 
-   PASO 3: Compilar
-      npm run tauri build
+TRAS CAMBIAR Cargo.toml:
+  cargo build --manifest-path src-tauri/Cargo.toml
 
-   PASO 4: El instalador está en:
-      src-tauri\target\release\bundle\msi\GestaERP_0.1.0_x64_en-US.msi
+----------------------------------------------------------------
+3. DESARROLLO LOCAL (DEV)
+----------------------------------------------------------------
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-3. ENTREGABLES AL CLIENTE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EJECUTAR LA APP EN MODO DESARROLLO:
+  cd /d d:\GestaERP\GestaERP
+  npm run tauri dev
 
-   ✅ Archivo .msi (instalador)
-   ✅ Clave de activación
-   ✅ LEEME_CLIENTE.txt (guía para el usuario)
+Esto inicia:
+  - Vite (frontend) en http://localhost:1420
+  - Cargo (backend Rust) con hot-reload
+  - La ventana de GestaERP en modo desarrollo
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-4. COMANDOS RÁPIDOS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTA: El modo desarrollo NO usa la clave de producción.
+      GESTAERP_ENV=development es el default.
 
-   npm run tauri build        → Compilar versión final
-   npm run tauri dev          → Modo desarrollo/pruebas
-   cargo run --bin generate_keys avanzado → Generar clave
-   npx tsc --noEmit           → Verificar frontend
-   cargo check                → Verificar backend
-   cargo test                 → Ejecutar pruebas
-   cargo clean                → Limpiar compilación
-   del /f /q src-tauri\app.db → Eliminar BD de pruebas
+----------------------------------------------------------------
+4. TYPE-CHECK Y LINT
+----------------------------------------------------------------
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-5. UBICACIÓN DE LA BD DEL CLIENTE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERIFICAR TIPOS TYPESCRIPT:
+  npx tsc --noEmit
 
-   %APPDATA%\GestaERP\gestaerp.db
-   (C:\Users\[cliente]\AppData\Roaming\GestaERP\gestaerp.db)
+VERIFICAR COMPILACIÓN RUST (rápido):
+  cargo check --manifest-path src-tauri/Cargo.toml
 
-   No se borra al desinstalar. Está protegida.
+----------------------------------------------------------------
+5. TESTS
+----------------------------------------------------------------
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-6. SOLUCIÓN DE PROBLEMAS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTS FRONTEND (Vitest):
+  npx vitest run          # Ejecutar todos los tests una vez
+  npx vitest              # Modo watch
+  npm test                # Alias (si se configura)
 
-   ❌ Error de BD → del /f /q src-tauri\app.db y recompilar
-   ❌ Clave inválida → Generar nueva (expirada después de 5 días)
-   ❌ No genera MSI → npm run tauri build -- --debug
-   ❌ Error Rust → cargo clean y npm run tauri build
+TESTS BACKEND (Rust):
+  cargo test --manifest-path src-tauri/Cargo.toml
 
-─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ─── ───
-© 2026 GestaSoftTech - Documentación interna
-Desarrollado por Johan Alexander Cabezas Huila - CEO
-www.fundasopaco.org
+TODOS LOS TESTS:
+  cd /d d:\GestaERP\GestaERP
+  npx vitest run
+  cargo test --manifest-path src-tauri/Cargo.toml
+
+----------------------------------------------------------------
+6. BUILD DE PRODUCCIÓN (LOCAL)
+----------------------------------------------------------------
+
+BUILD COMPLETO (genera instalador .exe en Windows):
+  cd /d d:\GestaERP\GestaERP
+  npm run tauri build
+
+OUTPUT:
+  src-tauri\target\release\bundle\msi\GestaERP_1.0.1_x64-setup.msi
+  src-tauri\target\release\bundle\nsis\GestaERP_1.0.1_x64-setup.exe
+
+ANTES DE BUILD:
+  - Bump de versión (ver sección 8)
+  - Configurar variables de producción (ver sección 7)
+
+----------------------------------------------------------------
+7. VARIABLES DE ENTORNO DE PRODUCCIÓN
+----------------------------------------------------------------
+
+Crear archivo .env en la raíz (NUNCA subir a Git):
+  GESTAERP_ENV=production
+  GESTAERP_SECRET_KEY=<clave_aleatoria_32+_caracteres>
+  GESTAERP_DB_PEPPER=<pepper_aleatorio_32+_caracteres>
+  GESTAERP_LOG_LEVEL=info
+
+GENERAR CLAVES ALEATORIAS (PowerShell):
+  -o "GESTAERP_SECRET_KEY = $([System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 })))"
+  -o "GESTAERP_DB_PEPPER   = $([System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 })))"
+
+IMPORTANTE: En producción, estas claves DEBEN ser únicas.
+           El código aborta si se detecta valor por defecto.
+
+----------------------------------------------------------------
+8. VERSIONAMIENTO (CRÍTICO)
+----------------------------------------------------------------
+
+SEMANTIC VERSIONING:
+  - PATCH (1.0.0 → 1.0.1): Fix de bugs menores
+  - MINOR (1.0.0 → 1.1.0): Nueva funcionalidad (retrocompatible)
+  - MAJOR (1.0.0 → 2.0.0): Cambio importante / rompedor
+
+COMANDOS DE BUMP DE VERSIÓN:
+  npm run bump:patch   # 1.0.0 → 1.0.1 (fix de bug)
+  npm run bump:minor   # 1.0.0 → 1.1.0 (nueva feature)
+  npm run bump:major   # 1.0.0 → 2.0.0 (gran cambio)
+
+ESTOS COMANDOS ACTUALIZAN SIMULTÁNEAMENTE:
+  - package.json
+  - src-tauri/tauri.conf.json
+  - src-tauri/Cargo.toml
+
+----------------------------------------------------------------
+9. CI/CD — GITHUB ACTIONS (GRATUITO)
+----------------------------------------------------------------
+
+FLUJO COMPLETO DE RELEASE (después de cada cambio):
+
+  1. Bump de versión:
+     npm run bump:patch    (o minor/major según el cambio)
+
+  2. Commit + Tag + Push:
+     git add -A
+     git commit -m "release: vX.Y.Z"     # X.Y.Z es la versión real
+     git tag vX.Y.Z
+     git push origin main --tags
+
+  3. GitHub Actions se dispara automáticamente:
+     - Compila en Windows (runner gratuito)
+     - Firma los binarios
+     - Crea Release en GitHub con instalador .exe
+     - Genera latest.json para Tauri Updater
+
+  4. Los clientes reciben la actualización automáticamente:
+     - Abren la app
+     - Verifica nueva versión
+     - Descarga e instala solo
+
+----------------------------------------------------------------
+10. CONFIGURACIÓN DE SECRETS EN GITHUB
+----------------------------------------------------------------
+
+URL: https://github.com/johanalexandercabezas/GestaERP/settings/secrets/actions
+
+SECRETS REQUERIDOS:
+  TAURI_SIGNING_PRIVATE_KEY         = Clave privada del updater
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD = Contraseña de la clave
+  GESTAERP_PRODUCTION_SECRET        = Clave de producción
+  GESTAERP_PRODUCTION_PEPPER        = Pepper de producción
+
+GENERAR CLAVES DE FIRMA DEL UPDATER (una sola vez):
+  npx tauri signer generate -w C:\Users\TuUsuario\.tauri\gestaerp.key
+
+Esto genera:
+  - Clave privada: C:\Users\TuUsuario\.tauri\gestaerp.key (guardar en GitHub)
+  - Clave pública: (mostrada en consola, copiar a tauri.conf.json)
+
+REEMPLAZAR EN src-tauri/tauri.conf.json:
+  "pubkey": "REEMPLAZAR_CON_CLAVE_PUBLICA_TAURI"
+  → pegar la clave pública generada
+
+----------------------------------------------------------------
+11. BACKUP DE LA CLAVE DE FIRMA
+----------------------------------------------------------------
+
+La clave privada TAURI_SIGNING_PRIVATE_KEY es MUY importante.
+Si se pierde, los clientes no podrán actualizar automáticamente.
+
+GUARDAR EN LUGAR SEGURO:
+  - Password manager de la empresa
+  - Almacenamiento cifrado (no en GitHub)
+
+----------------------------------------------------------------
+12. GENERAR LICENCIAS PARA CLIENTES (KEYGEN)
+----------------------------------------------------------------
+
+El keygen es una herramienta interna para generar licencias.
+NO se distribuye a clientes.
+
+BUILD DEL KEYGEN:
+  cd src-tauri
+  cargo run --bin generate_keys
+
+USO:
+  Ejecutar: Generar Licencia.bat (en src-tauri/keygen/)
+  Comandos: generar, listar, revocar, validar, buscar, stats
+
+REQUISITO: La GESTAERP_SECRET_KEY del keygen DEBE coincidir
+           con la de producción.
+
+----------------------------------------------------------------
+13. COMANDOS GIT ÚTILES
+----------------------------------------------------------------
+
+VER ESTADO:
+  git status
+
+VER REMOTOS:
+  git remote -v
+
+AGREGAR REMOTO (si no existe):
+  git remote add origin https://github.com/johanalexandercabezas/GestaERP.git
+
+VER COMMITS:
+  git log --oneline
+
+VER TAGS:
+  git tag
+
+BORRAR TAG LOCAL (si algo salió mal):
+  git tag -d v1.0.1
+
+BORRAR TAG REMOTO:
+  git push origin :refs/tags/v1.0.1
+
+VOLVER A UN COMMIT ANTERIOR (descartar cambios):
+  git reset --hard <commit_hash>
+
+----------------------------------------------------------------
+14. LIMPIEZA Y MANTENIMIENTO
+----------------------------------------------------------------
+
+LIMPIAR CACHÉ DE RUST (si hay problemas de compilación):
+  cargo clean --manifest-path src-tauri/Cargo.toml
+
+LIMPIAR DEPENDENCIAS NODE (reinstalar):
+  rm -rf node_modules
+  npm install
+
+VERIFICAR VULNERABILIDADES:
+  npm audit
+  cargo audit --manifest-path src-tauri/Cargo.toml  # requiere cargo-audit
+
+RECOMENDACIONES DIARIAS:
+  - Siempre hacer tests antes de commit: npx vitest run + cargo test
+  - Siempre type-check: npx tsc --noEmit
+  - Hacer backup de la BD antes de grandes refactorizaciones
+
+----------------------------------------------------------------
+15. ESTRUCTURA DE RAMAS (GIT FLOW)
+----------------------------------------------------------------
+
+- main: Producción (commits estables con tags vX.Y.Z)
+- develop: Desarrollo activo
+- feature/*: Nuevas funcionalidades
+- fix/*: Corrección de bugs
+- release/*: Preparación de releases
+
+RECOMENDACIÓN: Trabajar en feature/* y hacer merge a main
+               solo cuando los tests pasen.
+
+----------------------------------------------------------------
+16. MONITOREO (FUTURO SaaS — documentado por ahora)
+----------------------------------------------------------------
+
+Para la etapa actual (desktop offline), GestaERP:
+  - No requiere servidores
+  - No tiene infraestructura en la nube
+  - Los datos se guardan localmente en %APPDATA%\GestaERP\
+  - Las actualizaciones usan GitHub Releases (CDN gratuito)
+
+Para el futuro SaaS (roadmap 6-12 meses):
+  - PostgreSQL + RLS (Supabase) para multiempresa
+  - Backend Rust/Node propio (no depender de Supabase para negocio)
+  - Redis para caché y rate limiting
+  - Observabilidad con OpenTelemetry + Grafana
+
+----------------------------------------------------------------
+17. RESOLUCIÓN DE PROBLEMAS COMUNES
+----------------------------------------------------------------
+
+P: El build falla con "sqlcipher.lib not found"
+R: La feature sqlcipher requiere la librería del sistema.
+   Se usó "bundled" (SQLite estándar). Para cifrado real,
+   instalar SQLCipher o usar features=["bundled-sqlcipher"]
+   con OpenSSL disponible.
+
+P: Vitest falla con "describe undefined"
+R: Vitest 4.x tiene un bug. Se usa Vitest 3.2.7 (estable).
+   No actualizar a 4.x sin verificación.
+
+P: "No autorizado: debe iniciar sesión"
+R: El comando requiere sesión activa. Solo los comandos de
+   licencia/login/setup son públicos.
+
+P: El login no muestra la interfaz
+R: Verificar que no haya errores de hooks en consola.
+   El useMemo fue eliminado por violar reglas de hooks.
+
+P: Los botones de soporte no abren nada
+R: Se usa el plugin opener de Tauri (openExternal). Verificar
+   que tauri-plugin-opener esté en Cargo.toml y main.rs.
+
+----------------------------------------------------------------
+18. CONTACTO INTERNO
+----------------------------------------------------------------
+
+GestaSoftTech S.A.S.
+CEO: Johan Alexander Cabezas
+WhatsApp: +57 324 482 6034
+Email: gestaerp@fundasopaco.org
+
+================================================================
+  GestaERP v1.0.1 © 2026 GestaSoftTech S.A.S.
+  Documento interno — No distribuir
+================================================================

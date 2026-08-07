@@ -1,123 +1,189 @@
-╔══════════════════════════════════════════════════════════════╗
-║              GESTAERP - GUÍA RÁPIDA PARA EL CLIENTE          ║
-║              --------------------------------------          ║
-║         Sistema de Gestión Empresarial - GestaSoftTech       ║
-╚══════════════════════════════════════════════════════════════╝
+================================================================
+  GESTAERP v1.0.1 — GUÍA PARA EL CLIENTE FINAL
+  GestaSoftTech S.A.S. — Colombia 2026
+================================================================
 
-📌 VERSIÓN: 0.1.0
-📌 DESARROLLADO POR: Johan Alexander Cabezas Huila - CEO
-📌 EMPRESA: GestaSoftTech
-📌 SITIO WEB: www.fundasopaco.org
+ESTIMADO CLIENTE,
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Bienvenido a GestaERP, su sistema de gestión empresarial
+de escritorio. Esta guía contiene todo lo que necesita saber
+para instalar, usar y mantener su sistema funcionando
+correctamente.
+
+----------------------------------------------------------------
 1. REQUISITOS DEL SISTEMA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------------
 
-✅ Windows 10 o 11 (64 bits)
-✅ 4 GB de RAM o más
-✅ 500 MB de espacio libre en disco
-✅ No requiere internet (funciona 100% offline)
-✅ No requiere instalación de bases de datos externas
+- Sistema Operativo: Windows 10/11 (64 bits)
+- Memoria RAM: Mínimo 4 GB (recomendado 8 GB)
+- Espacio en disco: 500 MB libres
+- Conexión a internet: NO requerida (funciona 100% offline)
+- Resolución de pantalla: 1280x720 o superior
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------------
 2. INSTALACIÓN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------------
 
-a) Ejecuta el archivo GestaERP_x.x.x_x64-setup.msi
-b) Sigue las instrucciones del instalador
-c) Al finalizar, GestaERP se abrirá automáticamente
-d) Completa la configuración inicial:
-   - Nombre del negocio
-   - NIT
-   - Logo (opcional)
+1. Descargue el archivo: GestaERP_1.0.1_x64-setup.exe
+2. Haga doble clic sobre el archivo descargado.
+3. Windows SmartScreen puede mostrar "Windows protegió su PC".
+   Haga clic en "Más información" → "Ejecutar de todas formas".
+4. Siga los pasos del asistente de instalación.
+5. Al finalizar, GestaERP se abrirá automáticamente.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-3. PRIMEROS PASOS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------------
+3. PRIMER ARRANQUE — CONFIGURACIÓN INICIAL
+----------------------------------------------------------------
 
-🔐 USUARIO ADMINISTRADOR POR DEFECTO:
-   Usuario: admin
-   Clave:   admin123
+Al abrir GestaERP por primera vera, verá la pantalla de
+activación de licencia. Siga estos pasos:
 
-⚠️ CAMBIA LA CONTRASEÑA DESPUÉS DEL PRIMER INICIO DE SESIÓN.
+OPCIÓN A — PRUEBA GRATIS (15 días):
+   1. Haga clic en "Activar prueba gratis 15 días"
+   2. Disfrutará de todas las funciones por 15 días
+   3. Al expirar, deberá activar una licencia para continuar
 
-🔄 FLUJO BÁSICO DE USO:
-   1. Inicia sesión con admin / admin123
-   2. Ve al módulo "Licencias" e ingresa la clave de activación
-   3. Crea productos en "Productos"
-   4. Registra compras en "Compras"
-   5. Vende en "Punto de Venta"
+OPCIÓN B — LICENCIA PAGADA:
+   1. Contacte a GestaSoftTech para adquirir su licencia
+   2. Recibirá una clave con formato: GESTA-XXX-XXXXXXXX
+   3. Ingrese la clave en el campo "Clave de activación"
+   4. Haga clic en "Activar licencia"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-4. MÓDULOS DISPONIBLES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESPUÉS DE ACTIVAR:
+   1. Complete los datos de su empresa (nombre, NIT, teléfono)
+   2. Cree su usuario administrador (usuario + contraseña)
+   3. ¡Listo! Ya puede usar GestaERP
 
-📊 Dashboard       → Panel principal con resumen del negocio
-📦 Productos       → Gestionar inventario de productos
-🛒 Punto de Venta  → Realizar ventas (con lector de código de barras)
-📋 Compras         → Registrar compras a proveedores
-🏢 Proveedores     → Gestionar proveedores
-👥 Clientes        → Gestionar clientes
-👔 Empleados       → Gestionar empleados
-💰 Nómina          → Generar nómina y liquidación
-🏦 Caja            → Apertura y cierre de caja
-💸 Gastos          → Registrar gastos del negocio
-🤝 Cuentas x Cobrar→ Control de ventas a crédito
-📈 Reportes        → Reportes de ventas y exportación
-💾 Backups         → Copias de seguridad y migración
-📅 Calendario      → Notas, recordatorios y reuniones
-🔍 Auditoría Stock → Validación de inventario físico
+----------------------------------------------------------------
+4. CONTRASEÑA SEGURA — REQUISITOS
+----------------------------------------------------------------
 
-SOLO PLAN AVANZADO:
-🔐 Auditoría de Stock → Conteo físico vs sistema
-🔐 Personalización    → Logo y datos del negocio
-🔐 Soporte Prioritario
+Su contraseña debe cumplir con:
+- Mínimo 8 caracteres
+- Al menos una mayúscula (A-Z)
+- Al menos una minúscula (a-z)
+- Al menos un número (0-9)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-5. ¿CÓMO MIGRAR A OTRO COMPUTADOR?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ejemplo válido: Admin123
+Ejemplo válido: MiClave2026
 
-PASO 1 - En el computador actual:
-   a) Abre GestaERP
-   b) Ve al módulo "Backups"
-   c) Haz clic en "Crear backup"
-   d) Haz clic en el ícono de exportar (↓) junto al backup creado
-   e) El archivo se copiará automáticamente al Escritorio
+----------------------------------------------------------------
+5. MÓDULOS PRINCIPALES
+----------------------------------------------------------------
 
-PASO 2 - En el computador nuevo:
-   a) Instala GestaERP
-   b) Abre GestaERP y ve a "Backups"
-   c) Haz clic en "Importar"
-   d) Escribe la ruta del archivo que copiaste
-      Ejemplo: C:\Users\tunombre\Desktop\gestaerp_20260401_143000.db
-   e) Haz clic en "Importar backup"
-   f) Selecciona el backup importado y haz clic en "Restaurar"
-   g) Reinicia GestaERP
+- DASHBOARD: Resumen general (ventas, gastos, caja, gráficos)
+- PRODUCTOS: Inventario, precios, stock mínimo/máximo
+- PUNTO DE VENTA (POS): Ventas rápidas con búsqueda por SKU
+- SERVICIOS: Gestión de servicios (no consumen inventario)
+- COMPRAS: Registro de compras a proveedores
+- COTIZACIONES: Crear y enviar cotizaciones a clientes
+- KARDEX: Movimientos de inventario (entradas/salidas)
+- AUDITORÍA DE STOCK: Conteo físico de inventario
+- PROVEEDORES: Gestión de proveedores y cuentas por pagar
+- CLIENTES: Gestión de clientes y cuentas por cobrar
+- EMPLEADOS: Registro de empleados y seguridad social
+- NÓMINA: Cálculo de nómina colombiana (seguridad social)
+- CAJA: Apertura y cierre de caja diaria
+- GASTOS: Registro de gastos por categoría
+- REPORTES: Reportes de ventas y exportación a CSV
+- BACKUPS: Copias de seguridad de la base de datos
+- CALENDARIO: Notas y recordatorios
+- USUARIOS: Gestión de usuarios y roles (solo admin)
+- AUDITORÍA DEL SISTEMA: Registro de todas las acciones
+- CIERRE CONTABLE: Cierre de periodos mensuales
 
-✅ ¡Tus datos están en el nuevo computador!
+----------------------------------------------------------------
+6. ROLES DE USUARIO
+----------------------------------------------------------------
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-6. ¿CÓMO ACTUALIZAR GESTAERP?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ADMIN: Acceso completo a todos los módulos
+- CAJERO: Punto de venta, caja, clientes (sin configuración)
+- VENDEDOR: Productos, ventas, cotizaciones (sin admin)
 
-a) Cierra GestaERP si está abierto
-b) Ejecuta el nuevo instalador MSI
-c) El instalador reemplazará los archivos
-d) Tu base de datos NO se borra (está protegida en %APPDATA%)
-e) Al abrir GestaERP, las nuevas funciones estarán disponibles
+----------------------------------------------------------------
+7. COPIAS DE SEGURIDAD (BACKUPS)
+----------------------------------------------------------------
 
-⚠️ IMPORTANTE:
-   - La base de datos se conserva al actualizar
-   - No es necesario hacer backup antes de actualizar,
-     pero es recomendable por seguridad
+IMPORTANTE: Haga backups regularmente.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-7. SOPORTE TÉCNICO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Vaya al módulo "Backups"
+2. Haga clic en "Crear backup"
+3. El backup se guarda en: %APPDATA%\GestaERP\backups\
+4. Para exportar a USB: "Exportar" → seleccione la ruta
+5. Para restaurar: "Importar" → seleccione el archivo .db
 
-📧 Email: soporte@fundasopaco.org
-🌐 Web:   www.fundasopaco.org
-👤 CEO:   Johan Alexander Cabezas Huila
-🏢 Empresa: GestaSoftTech
+RECOMENDACIÓN: Haga un backup al menos una vez por semana.
 
-© 2026 GestaSoftTech - Todos los derechos reservados
+----------------------------------------------------------------
+8. ACTUALIZACIONES AUTOMÁTICAS
+----------------------------------------------------------------
+
+GestaERP se actualiza automáticamente:
+
+1. Al abrir la app, verifica si hay una nueva versión
+2. Si existe, descarga la actualización
+3. La instala automáticamente (sin perder sus datos)
+4. No necesita hacer nada manualmente
+
+Sus datos (ventas, productos, clientes) se conservan
+siempre durante las actualizaciones.
+
+----------------------------------------------------------------
+9. SOPORTE TÉCNICO
+----------------------------------------------------------------
+
+Canales de contacto disponibles dentro de GestaERP:
+
+- WHATSAPP: Haga clic en el botón verde flotante (abajo derecha)
+  o en "Soporte" del menú lateral izquierdo
+
+- CORREO: gestaerp@fundasopaco.org
+
+- SITIO WEB: www.fundasopaco.org
+
+HORARIO: Lunes a Viernes, 8:00 AM - 6:00 PM (hora Colombia)
+TIEMPO DE RESPUESTA: Menos de 24 horas hábiles
+
+----------------------------------------------------------------
+10. PREGUNTAS FRECUENTES
+----------------------------------------------------------------
+
+P: ¿Necesito internet para usar GestaERP?
+R: No. GestaERP funciona 100% offline. Solo necesita internet
+   para recibir actualizaciones automáticas.
+
+P: ¿Dónde se guardan mis datos?
+R: En su computador, en %APPDATA%\GestaERP\gestaerp.db
+
+P: ¿Puedo pasar mis datos a otro computador?
+R: Sí. Use "Exportar backup" en el módulo Backups, copie el
+   archivo al nuevo computador, y use "Importar backup".
+
+P: ¿Qué hago si olvidé mi contraseña?
+R: Contacte a soporte por WhatsApp. No almacene contraseñas
+   en papel visible.
+
+P: ¿Cuántos usuarios puedo tener?
+R: Depende de su plan:
+   - Trial: 1 usuario
+   - Básico: 1 usuario
+   - Intermedio: 2 usuarios
+   - Avanzado: 6 usuarios
+
+P: ¿Puedo cambiar de plan?
+R: Sí. Haga clic en "Cambiar plan" en el menú lateral.
+
+----------------------------------------------------------------
+11. DATOS DE CONTACTO
+----------------------------------------------------------------
+
+GestaSoftTech S.A.S.
+CEO: Johan Alexander Cabezas
+WhatsApp: +57 324 482 6034
+Email: gestaerp@fundasopaco.org
+Web: www.fundasopaco.org
+
+================================================================
+  GestaERP v1.0.1 © 2026 GestaSoftTech S.A.S.
+  Todos los derechos reservados.
+================================================================
