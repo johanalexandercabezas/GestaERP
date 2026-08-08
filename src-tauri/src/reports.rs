@@ -1,7 +1,7 @@
 use printpdf::*;
+use rusqlite::Connection;
 use std::fs::File;
 use std::io::BufWriter;
-use rusqlite::Connection;
 
 pub fn generate_sales_report(conn: &Connection, file_path: &str) -> Result<(), String> {
     // Obtener ventas recientes (últimas 200)
@@ -24,16 +24,16 @@ pub fn generate_sales_report(conn: &Connection, file_path: &str) -> Result<(), S
     }
 
     // Crear documento PDF
-    let (doc, page1, layer1) = PdfDocument::new(
-        "Reporte de Ventas",
-        Mm(210.0),
-        Mm(297.0),
-        "Layer 1",
-    );
+    let (doc, page1, layer1) =
+        PdfDocument::new("Reporte de Ventas", Mm(210.0), Mm(297.0), "Layer 1");
 
     // Agregar la fuente Helvetica (viene incluida)
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).map_err(|e| format!("Error al cargar fuente: {}", e))?;
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).map_err(|e| format!("Error al cargar fuente bold: {}", e))?;
+    let font = doc
+        .add_builtin_font(BuiltinFont::Helvetica)
+        .map_err(|e| format!("Error al cargar fuente: {}", e))?;
+    let font_bold = doc
+        .add_builtin_font(BuiltinFont::HelveticaBold)
+        .map_err(|e| format!("Error al cargar fuente bold: {}", e))?;
 
     let current_layer = doc.get_page(page1).get_layer(layer1);
 
@@ -86,8 +86,7 @@ pub fn generate_sales_report(conn: &Connection, file_path: &str) -> Result<(), S
     }
 
     // Guardar
-    let file = File::create(file_path)
-        .map_err(|e| format!("Error al crear archivo PDF: {}", e))?;
+    let file = File::create(file_path).map_err(|e| format!("Error al crear archivo PDF: {}", e))?;
     let mut writer = BufWriter::new(file);
     doc.save(&mut writer)
         .map_err(|e| format!("Error al escribir PDF: {}", e))?;

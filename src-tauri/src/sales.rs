@@ -60,7 +60,16 @@ pub fn create_sale_complete(
 ) -> Result<i64> {
     #[allow(dead_code)]
     let is_credit = payment_method == "Crédito";
-    create_sale_core(conn, user_id, payment_method, items, customer_id, customer_name, is_credit, discount_percent)
+    create_sale_core(
+        conn,
+        user_id,
+        payment_method,
+        items,
+        customer_id,
+        customer_name,
+        is_credit,
+        discount_percent,
+    )
 }
 
 fn create_sale_core(
@@ -81,23 +90,33 @@ fn create_sale_core(
 
     for item in items {
         if item.quantity <= 0.0 {
-            return Err(rusqlite::Error::InvalidParameterName(
-                format!("La cantidad a vender debe ser mayor a cero. Producto ID: {}", item.product_id),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "La cantidad a vender debe ser mayor a cero. Producto ID: {}",
+                item.product_id
+            )));
         }
     }
 
     // Iniciar transacción segura
-    let tx = TransactionGuard::begin(conn)
-        .map_err(|e| rusqlite::Error::InvalidParameterName(e))?;
+    let tx = TransactionGuard::begin(conn).map_err(|e| rusqlite::Error::InvalidParameterName(e))?;
 
     let mut subtotal = 0.0;
     let mut item_details = Vec::new();
     for item in items {
-        let (name, price, current_stock, min_stock, unit): (String, f64, f64, f64, String) = conn.query_row(
+        let (name, price, current_stock, min_stock, unit): (String, f64, f64, f64, String) = conn
+            .query_row(
             "SELECT name, price, stock, min_stock, unit FROM products WHERE id = ?1 AND active = 1",
             [item.product_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, String>(4).unwrap_or_else(|_| "UNIDAD".to_string()))),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get::<_, String>(4)
+                        .unwrap_or_else(|_| "UNIDAD".to_string()),
+                ))
+            },
         )?;
 
         let is_service = unit == "SERVICIO";
@@ -105,9 +124,10 @@ fn create_sale_core(
         // Solo validar stock si NO es servicio
         if !is_service {
             if current_stock < item.quantity {
-                return Err(rusqlite::Error::InvalidParameterName(
-                    format!("Stock insuficiente para '{}'. Disponible: {}", name, current_stock),
-                ));
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "Stock insuficiente para '{}'. Disponible: {}",
+                    name, current_stock
+                )));
             }
 
             let new_stock = current_stock - item.quantity;
@@ -147,11 +167,13 @@ fn create_sale_core(
         )?;
 
         // Verificar si es servicio consultando unit
-        let unit: String = conn.query_row(
-            "SELECT COALESCE(unit, 'UNIDAD') FROM products WHERE id = ?1",
-            [product_id],
-            |row| row.get(0),
-        ).unwrap_or_else(|_| "UNIDAD".to_string());
+        let unit: String = conn
+            .query_row(
+                "SELECT COALESCE(unit, 'UNIDAD') FROM products WHERE id = ?1",
+                [product_id],
+                |row| row.get(0),
+            )
+            .unwrap_or_else(|_| "UNIDAD".to_string());
         let is_service = unit == "SERVICIO";
 
         // Solo descontar stock si NO es servicio
@@ -301,49 +323,74 @@ mod tests {
     #[test]
     fn test_create_sale_updates_stock() {
         let conn = setup_db();
-        
+
         // Insertar producto de prueba (stock 10, mínimo 1)
         conn.execute("INSERT INTO products (sku, name, price, cost, stock, min_stock, max_stock, iva_percent, active) VALUES ('TEST1', 'Prod Test', 100.0, 50.0, 10.0, 1.0, 20.0, 0, 1)", []).unwrap();
-        
-        let items = vec![SaleItemRequest { product_id: 1, quantity: 2.0 }];
-        
+
+        let items = vec![SaleItemRequest {
+            product_id: 1,
+            quantity: 2.0,
+        }];
+
         // Crear venta
         let sale_id = create_sale(&conn, 1, "Efectivo", &items).unwrap();
         assert_eq!(sale_id, 1);
 
         // Verificar que el stock bajó a 8
-        let stock: f64 = conn.query_row("SELECT stock FROM products WHERE id = 1", [], |row| row.get(0)).unwrap();
+        let stock: f64 = conn
+            .query_row("SELECT stock FROM products WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
         assert_eq!(stock, 8.0);
-        
+
         // Verificar que la caja incrementó su saldo (100 * 2 = 200)
-        let balance: f64 = conn.query_row("SELECT current_balance FROM cash_registers WHERE id = 1", [], |row| row.get(0)).unwrap();
+        let balance: f64 = conn
+            .query_row(
+                "SELECT current_balance FROM cash_registers WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(balance, 200.0);
     }
 
     #[test]
     fn test_cannot_sell_below_min_stock() {
         let conn = setup_db();
-        
+
         // Insertar producto (stock 2, mínimo 2) - No debería permitir vender 1
         conn.execute("INSERT INTO products (sku, name, price, cost, stock, min_stock, max_stock, iva_percent, active) VALUES ('TEST2', 'Prod Min', 100.0, 50.0, 2.0, 2.0, 20.0, 0, 1)", []).unwrap();
-        
-        let items = vec![SaleItemRequest { product_id: 1, quantity: 1.0 }];
-        
+
+        let items = vec![SaleItemRequest {
+            product_id: 1,
+            quantity: 1.0,
+        }];
+
         // Intentar crear venta - Debe dar error
         let result = create_sale(&conn, 1, "Efectivo", &items);
-        assert!(result.is_err(), "No debería permitir vender por debajo del stock mínimo");
+        assert!(
+            result.is_err(),
+            "No debería permitir vender por debajo del stock mínimo"
+        );
     }
 
     #[test]
     fn test_cannot_sell_zero_or_negative_quantity() {
         let conn = setup_db();
         conn.execute("INSERT INTO products (sku, name, price, cost, stock, min_stock, max_stock, iva_percent, active) VALUES ('TEST3', 'Prod Zero', 100.0, 50.0, 10.0, 0.0, 20.0, 0, 1)", []).unwrap();
-        
-        let items_zero = vec![SaleItemRequest { product_id: 1, quantity: 0.0 }];
+
+        let items_zero = vec![SaleItemRequest {
+            product_id: 1,
+            quantity: 0.0,
+        }];
         let result_zero = create_sale(&conn, 1, "Efectivo", &items_zero);
         assert!(result_zero.is_err());
 
-        let items_neg = vec![SaleItemRequest { product_id: 1, quantity: -2.0 }];
+        let items_neg = vec![SaleItemRequest {
+            product_id: 1,
+            quantity: -2.0,
+        }];
         let result_neg = create_sale(&conn, 1, "Efectivo", &items_neg);
         assert!(result_neg.is_err());
     }

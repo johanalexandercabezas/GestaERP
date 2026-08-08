@@ -12,13 +12,15 @@ use sha2::Sha256;
 use std::io::{self, Write, BufRead};
 use std::env;
 use rusqlite::Connection;
-
-const DEFAULT_MASTER_SECRET: &str = "GestaERP_2026_SecureKey_Colombia";
 const SIGNATURE_BYTES: usize = 8;
 
-/// Obtiene la clave maestra desde variable de entorno o usa el valor por defecto
+/// Obtiene la clave maestra desde variable de entorno. Aborta si no está configurada.
 fn get_master_secret() -> String {
-    env::var("GESTAERP_SECRET_KEY").unwrap_or_else(|_| DEFAULT_MASTER_SECRET.to_string())
+    env::var("GESTAERP_SECRET_KEY").unwrap_or_else(|_| {
+        eprintln!("ERROR: GESTAERP_SECRET_KEY no está configurada.");
+        eprintln!("Define esta variable de entorno antes de ejecutar el keygen.");
+        std::process::exit(1);
+    })
 }
 
 #[derive(Debug)]

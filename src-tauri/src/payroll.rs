@@ -1,6 +1,6 @@
+use chrono::{Datelike, NaiveDate};
 use rusqlite::{Connection, Result};
 use serde::Serialize;
-use chrono::{NaiveDate, Datelike};
 
 const SMMLV_2026: f64 = 1_750_905.0;
 const AUX_TRANSPORTE_2026: f64 = 249_095.0;
@@ -105,13 +105,28 @@ pub fn list_employees(conn: &Connection) -> Result<Vec<Employee>> {
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(Employee {
-            id: row.get(0)?, name: row.get(1)?, doc_type: row.get(2)?, doc_number: row.get(3)?,
-            position: row.get(4)?, base_salary: row.get(5)?, transport_allowance: row.get::<_, i64>(6)? != 0,
+            id: row.get(0)?,
+            name: row.get(1)?,
+            doc_type: row.get(2)?,
+            doc_number: row.get(3)?,
+            position: row.get(4)?,
+            base_salary: row.get(5)?,
+            transport_allowance: row.get::<_, i64>(6)? != 0,
             has_social_security: row.get::<_, i64>(7)? != 0,
-            payment_frequency: row.get(8)?, risk_level: row.get(9)?,
-            phone: row.get(10)?, email: row.get(11)?, city: row.get(12)?, department: row.get(13)?,
-            address: row.get(14)?, hire_date: row.get(15)?, eps: row.get(16)?, arl: row.get(17)?,
-            afp: row.get(18)?, ccf: row.get(19)?, fondo_cesantias: row.get(20)?, active: row.get::<_, i64>(21)? != 0,
+            payment_frequency: row.get(8)?,
+            risk_level: row.get(9)?,
+            phone: row.get(10)?,
+            email: row.get(11)?,
+            city: row.get(12)?,
+            department: row.get(13)?,
+            address: row.get(14)?,
+            hire_date: row.get(15)?,
+            eps: row.get(16)?,
+            arl: row.get(17)?,
+            afp: row.get(18)?,
+            ccf: row.get(19)?,
+            fondo_cesantias: row.get(20)?,
+            active: row.get::<_, i64>(21)? != 0,
         })
     })?;
     rows.collect()
@@ -141,8 +156,14 @@ pub fn compute_payroll(
 
     let days_worked = {
         let period_parts: Vec<&str> = period.split('-').collect();
-        let year: i32 = period_parts.first().and_then(|s| s.parse().ok()).unwrap_or(2026);
-        let month: u32 = period_parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
+        let year: i32 = period_parts
+            .first()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(2026);
+        let month: u32 = period_parts
+            .get(1)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
         let first_day = NaiveDate::from_ymd_opt(year, month, 1)
             .unwrap_or_else(|| NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
         let last_day = if month == 12 {
@@ -176,7 +197,8 @@ pub fn compute_payroll(
         _ => days_worked,
     };
 
-    let proportional_salary: f64 = (employee.base_salary * adjusted_days / total_days_month).round();
+    let proportional_salary: f64 =
+        (employee.base_salary * adjusted_days / total_days_month).round();
     let hourly_rate: f64 = proportional_salary / (adjusted_days * 8.0).max(1.0);
 
     let overtime_day_amount: f64 = (hourly_rate * 1.25 * day_ot).round();
@@ -184,16 +206,30 @@ pub fn compute_payroll(
     let sunday_amount: f64 = (hourly_rate * 2.0 * sunday_ot).round();
     let holiday_amount: f64 = (hourly_rate * 2.0 * holiday_ot).round();
 
-    let transport: f64 = if employee.has_social_security && employee.base_salary <= 2.0 * SMMLV_2026 {
+    let transport: f64 = if employee.has_social_security && employee.base_salary <= 2.0 * SMMLV_2026
+    {
         (AUX_TRANSPORTE_2026 * adjusted_days / total_days_month).round()
     } else {
         0.0
     };
 
-    let total_earnings = proportional_salary + transport + overtime_day_amount + overtime_night_amount + sunday_amount + holiday_amount;
+    let total_earnings = proportional_salary
+        + transport
+        + overtime_day_amount
+        + overtime_night_amount
+        + sunday_amount
+        + holiday_amount;
 
-    let health_deduction: f64 = if employee.has_social_security { (proportional_salary * 0.04).round() } else { 0.0 };
-    let pension_deduction: f64 = if employee.has_social_security { (proportional_salary * 0.04).round() } else { 0.0 };
+    let health_deduction: f64 = if employee.has_social_security {
+        (proportional_salary * 0.04).round()
+    } else {
+        0.0
+    };
+    let pension_deduction: f64 = if employee.has_social_security {
+        (proportional_salary * 0.04).round()
+    } else {
+        0.0
+    };
     let net_salary = total_earnings - health_deduction - pension_deduction;
 
     PayrollEntry {
@@ -227,17 +263,24 @@ pub fn generate_payroll(
         |row| row.get(0),
     )?;
     if count > 0 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            format!("Ya existe nómina generada para el periodo {}", period),
-        ));
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Ya existe nómina generada para el periodo {}",
+            period
+        )));
     }
 
     let employees = list_employees(conn)?;
     let mut entries = Vec::new();
 
     let period_parts: Vec<&str> = period.split('-').collect();
-    let year: i32 = period_parts.first().and_then(|s| s.parse().ok()).unwrap_or(2026);
-    let month: u32 = period_parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
+    let year: i32 = period_parts
+        .first()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2026);
+    let month: u32 = period_parts
+        .get(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1);
     let last_day = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
             .and_then(|d| d.pred_opt())
@@ -250,9 +293,12 @@ pub fn generate_payroll(
     let total_days_month = last_day.day() as f64;
 
     for emp in &employees {
-        if !emp.active { continue; }
+        if !emp.active {
+            continue;
+        }
 
-        let ot = overtime_hours.iter()
+        let ot = overtime_hours
+            .iter()
             .find(|(id, _, _, _, _)| *id == emp.id)
             .map(|(_, d, n, s, h)| (*d, *n, *s, *h))
             .unwrap_or((0.0, 0.0, 0.0, 0.0));
@@ -275,12 +321,21 @@ pub fn get_payroll_history(conn: &Connection, period: &str) -> Result<Vec<Payrol
     )?;
     let rows = stmt.query_map([period], |row| {
         Ok(PayrollEntry {
-            id: row.get(0)?, employee_id: row.get(1)?, period: row.get(2)?, payment_frequency: row.get(3)?,
-            days_worked: row.get(4)?, basic_salary: row.get(5)?, transport_allowance: row.get(6)?,
-            overtime_day_hours: row.get(7)?, overtime_night_hours: row.get(8)?,
-            sunday_hours: row.get(9)?, holiday_hours: row.get(10)?,
-            total_earnings: row.get(11)?, health_deduction: row.get(12)?,
-            pension_deduction: row.get(13)?, net_salary: row.get(14)?,
+            id: row.get(0)?,
+            employee_id: row.get(1)?,
+            period: row.get(2)?,
+            payment_frequency: row.get(3)?,
+            days_worked: row.get(4)?,
+            basic_salary: row.get(5)?,
+            transport_allowance: row.get(6)?,
+            overtime_day_hours: row.get(7)?,
+            overtime_night_hours: row.get(8)?,
+            sunday_hours: row.get(9)?,
+            holiday_hours: row.get(10)?,
+            total_earnings: row.get(11)?,
+            health_deduction: row.get(12)?,
+            pension_deduction: row.get(13)?,
+            net_salary: row.get(14)?,
             created_at: row.get(15)?,
         })
     })?;
@@ -288,44 +343,102 @@ pub fn get_payroll_history(conn: &Connection, period: &str) -> Result<Vec<Payrol
 }
 
 pub fn calculate_benefit_load(employees: &[Employee]) -> Vec<BenefitLoad> {
-    employees.iter().filter(|e| e.active).map(|emp| {
-        let base = emp.base_salary;
-        let health_employer: f64 = (base * 0.085).round();
-        let pension_employer: f64 = (base * 0.12).round();
-        let arl_rates: f64 = match emp.risk_level.as_str() {
-            "I" => 0.00522, "II" => 0.01044, "III" => 0.02436, "IV" => 0.04350, "V" => 0.06960, _ => 0.00522,
-        };
-        let arl_cost: f64 = (base * arl_rates).round();
-        let ccf_cost: f64 = (base * 0.04).round();
-        let sena_cost: f64 = if base <= 10.0 * SMMLV_2026 { 0.0 } else { (base * 0.02).round() };
-        let icbf_cost: f64 = if base <= 10.0 * SMMLV_2026 { 0.0 } else { (base * 0.03).round() };
-        let prima_provision: f64 = (base * 0.0833).round();
-        let cesantias_provision: f64 = (base * 0.0833).round();
-        let int_cesantias_provision: f64 = (base * 0.01).round();
-        let vacaciones_provision: f64 = (base * 0.0417).round();
-        let total_employer_cost = health_employer + pension_employer + arl_cost + ccf_cost + sena_cost + icbf_cost + prima_provision + cesantias_provision + int_cesantias_provision + vacaciones_provision;
+    employees
+        .iter()
+        .filter(|e| e.active)
+        .map(|emp| {
+            let base = emp.base_salary;
+            let health_employer: f64 = (base * 0.085).round();
+            let pension_employer: f64 = (base * 0.12).round();
+            let arl_rates: f64 = match emp.risk_level.as_str() {
+                "I" => 0.00522,
+                "II" => 0.01044,
+                "III" => 0.02436,
+                "IV" => 0.04350,
+                "V" => 0.06960,
+                _ => 0.00522,
+            };
+            let arl_cost: f64 = (base * arl_rates).round();
+            let ccf_cost: f64 = (base * 0.04).round();
+            let sena_cost: f64 = if base <= 10.0 * SMMLV_2026 {
+                0.0
+            } else {
+                (base * 0.02).round()
+            };
+            let icbf_cost: f64 = if base <= 10.0 * SMMLV_2026 {
+                0.0
+            } else {
+                (base * 0.03).round()
+            };
+            let prima_provision: f64 = (base * 0.0833).round();
+            let cesantias_provision: f64 = (base * 0.0833).round();
+            let int_cesantias_provision: f64 = (base * 0.01).round();
+            let vacaciones_provision: f64 = (base * 0.0417).round();
+            let total_employer_cost = health_employer
+                + pension_employer
+                + arl_cost
+                + ccf_cost
+                + sena_cost
+                + icbf_cost
+                + prima_provision
+                + cesantias_provision
+                + int_cesantias_provision
+                + vacaciones_provision;
 
-        BenefitLoad {
-            employee_id: emp.id, employee_name: emp.name.clone(), base_salary: base,
-            health_employer, pension_employer, arl_cost, ccf_cost,
-            sena_cost, icbf_cost, prima_provision, cesantias_provision,
-            int_cesantias_provision, vacaciones_provision, total_employer_cost,
-        }
-    }).collect()
+            BenefitLoad {
+                employee_id: emp.id,
+                employee_name: emp.name.clone(),
+                base_salary: base,
+                health_employer,
+                pension_employer,
+                arl_cost,
+                ccf_cost,
+                sena_cost,
+                icbf_cost,
+                prima_provision,
+                cesantias_provision,
+                int_cesantias_provision,
+                vacaciones_provision,
+                total_employer_cost,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn empleado_prueba(base_salary: f64, transport: bool, social: bool, freq: &str, hire: Option<&str>) -> Employee {
+    fn empleado_prueba(
+        base_salary: f64,
+        transport: bool,
+        social: bool,
+        freq: &str,
+        hire: Option<&str>,
+    ) -> Employee {
         Employee {
-            id: 1, name: "Test".into(), doc_type: Some("CC".into()), doc_number: Some("123".into()),
-            position: Some("Analista".into()), base_salary, transport_allowance: transport,
-            has_social_security: social, payment_frequency: freq.to_string(), risk_level: "I".into(),
-            phone: None, email: None, city: Some("Bogotá".into()), department: Some("Cundinamarca".into()),
-            address: None, hire_date: hire.map(|s| s.to_string()), eps: None, arl: None, afp: None, ccf: None,
-            fondo_cesantias: None, active: true,
+            id: 1,
+            name: "Test".into(),
+            doc_type: Some("CC".into()),
+            doc_number: Some("123".into()),
+            position: Some("Analista".into()),
+            base_salary,
+            transport_allowance: transport,
+            has_social_security: social,
+            payment_frequency: freq.to_string(),
+            risk_level: "I".into(),
+            phone: None,
+            email: None,
+            city: Some("Bogotá".into()),
+            department: Some("Cundinamarca".into()),
+            address: None,
+            hire_date: hire.map(|s| s.to_string()),
+            eps: None,
+            arl: None,
+            afp: None,
+            ccf: None,
+            fondo_cesantias: None,
+            active: true,
         }
     }
 
@@ -374,8 +487,12 @@ mod tests {
         let emp = empleado_prueba(2_000_000.0, false, true, "Mensual", None);
         let loads = calculate_benefit_load(&[emp]);
         let load = &loads[0];
-        assert!((load.health_employer - ((2_000_000.0_f64 * 0.085_f64).round() as f64)).abs() < 0.01);
-        assert!((load.pension_employer - ((2_000_000.0_f64 * 0.12_f64).round() as f64)).abs() < 0.01);
+        assert!(
+            (load.health_employer - ((2_000_000.0_f64 * 0.085_f64).round() as f64)).abs() < 0.01
+        );
+        assert!(
+            (load.pension_employer - ((2_000_000.0_f64 * 0.12_f64).round() as f64)).abs() < 0.01
+        );
         assert!((load.arl_cost - ((2_000_000.0_f64 * 0.00522_f64).round() as f64)).abs() < 0.01);
         assert!((load.ccf_cost - ((2_000_000.0_f64 * 0.04_f64).round() as f64)).abs() < 0.01);
         assert_eq!(load.sena_cost, 0.0);

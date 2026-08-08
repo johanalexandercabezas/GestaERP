@@ -31,7 +31,11 @@ pub fn create_expense(
     Ok(conn.last_insert_rowid())
 }
 
-pub fn list_expenses(conn: &Connection, limit: i64, supplier_id: Option<i64>) -> Result<Vec<Expense>> {
+pub fn list_expenses(
+    conn: &Connection,
+    limit: i64,
+    supplier_id: Option<i64>,
+) -> Result<Vec<Expense>> {
     let query = "SELECT id, user_id, description, amount, category, payment_method, supplier_id, supplier_name, created_at FROM expenses WHERE (?1 IS NULL OR supplier_id = ?1) ORDER BY id DESC LIMIT ?2";
     let mut stmt = conn.prepare(query)?;
     let rows = stmt.query_map(rusqlite::params![supplier_id, limit], |row| {

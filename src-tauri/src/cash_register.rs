@@ -126,7 +126,8 @@ mod tests {
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         // CORRECCIÓN: Añadir el DEFAULT a open_date tal cual está en la BD real
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE users (id INTEGER PRIMARY KEY); 
             INSERT INTO users (id) VALUES (1);
             CREATE TABLE cash_registers (
@@ -139,14 +140,16 @@ mod tests {
                 final_balance REAL, 
                 status TEXT NOT NULL DEFAULT 'open'
             );
-        ").unwrap();
+        ",
+        )
+        .unwrap();
         conn
     }
 
     #[test]
     fn test_open_and_increment_balance() {
         let conn = setup_db();
-        
+
         let reg_id = open_register(&conn, 1, 100.0).unwrap();
         assert_eq!(reg_id, 1);
 
@@ -154,7 +157,7 @@ mod tests {
         assert_eq!(reg.current_balance, 100.0);
 
         increment_balance(&conn, 50.0).unwrap();
-        
+
         let reg_updated = get_open_register(&conn).unwrap().unwrap();
         assert_eq!(reg_updated.current_balance, 150.0);
     }
@@ -163,8 +166,11 @@ mod tests {
     fn test_cannot_open_two_registers() {
         let conn = setup_db();
         open_register(&conn, 1, 100.0).unwrap();
-        
+
         let result = open_register(&conn, 1, 200.0);
-        assert!(result.is_err(), "No debería permitir abrir dos cajas simultáneamente");
+        assert!(
+            result.is_err(),
+            "No debería permitir abrir dos cajas simultáneamente"
+        );
     }
 }

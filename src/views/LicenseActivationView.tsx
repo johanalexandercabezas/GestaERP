@@ -5,19 +5,9 @@ import PremiumButton from "../components/ui/PremiumButton";
 import PremiumModal from "../components/ui/PremiumModal";
 import { motion } from "framer-motion";
 import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Heart, ExternalLink, ClipboardCheck, Sparkles } from "lucide-react";
+import type { LicenseInfo } from "../types/auth";
 
 interface Props {
-  onActivated: () => void;
-}
-
-interface LicenseInfo {
-  plan: string;
-  activated: boolean;
-  expires_at: string;
-  max_users: number;
-  days_left: number;
-  modules: string[];
-}
 
 interface ImplementationStatus {
   is_paid: boolean;

@@ -1,23 +1,9 @@
-use rusqlite::{Connection, Result};
 use argon2::{
-    password_hash::{PasswordHasher, SaltString, PasswordHash, PasswordVerifier},
+    password_hash::{PasswordHash, PasswordVerifier},
     Argon2,
 };
-use rand::rngs::OsRng;
+use rusqlite::{Connection, Result};
 use serde::Serialize;
-use std::fmt;
-
-// ---------- Wrapper para errores de argon2 ----------
-#[derive(Debug)]
-struct HashError(String);
-
-impl fmt::Display for HashError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::error::Error for HashError {}
 
 // ---------- Estructuras de datos ----------
 #[derive(Serialize)]
@@ -62,38 +48,38 @@ fn derive_machine_key() -> String {
 
 // ---------- Apertura de base de datos ----------
 pub fn open_database() -> Result<Connection> {
-    let data_dir = dirs::data_dir().expect("No se pudo encontrar el directorio de datos del sistema");
+    let data_dir =
+        dirs::data_dir().expect("No se pudo encontrar el directorio de datos del sistema");
     let app_dir = data_dir.join("GestaERP");
     std::fs::create_dir_all(&app_dir).expect("No se pudo crear el directorio de la base de datos");
-    
+
     let db_path = app_dir.join("gestaerp.db");
     let conn = Connection::open(&db_path)?;
-    
+
     // P1-04 FIX: Activar integridad referencial (FOREIGN KEY enforcement)
     // y timeout de bloqueo para operaciones concurrentes.
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
-    
+
     // Clave derivada de la máquina: cada PC tiene una clave única.
     // NOTA P0-06: con `rusqlite` estándar (sin feature "sqlcipher"), PRAGMA key se IGNORA.
     // Para activar cifrado real: usar features = ["bundled", "sqlcipher"] en Cargo.toml.
     let machine_key = derive_machine_key();
     let _ = conn.pragma_update(None, "key", &machine_key);
-    
+
     // Si la BD es nueva (no existía), la clave se establece automáticamente.
     // Si ya existía y la clave no coincide, el SELECT fallará con error de "file is not a database"
     conn.execute_batch("SELECT count(*) FROM sqlite_master")
         .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Error de lectura de BD (¿clave incorrecta? - posiblemente BD de otra máquina o corrupta): {}", e)))?;
-    
+
     Ok(conn)
 }
 
 // ---------- Configuración (settings) ----------
 pub fn get_setting(conn: &Connection, key: &str) -> Option<String> {
-    conn.query_row(
-        "SELECT value FROM settings WHERE key = ?1",
-        [key],
-        |row| row.get(0),
-    ).ok()
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+        row.get(0)
+    })
+    .ok()
 }
 
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
@@ -106,16 +92,21 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
 
 // ---------- Autenticación ----------
 pub fn verify_password(conn: &Connection, username: &str, password: &str) -> Result<bool, String> {
-    let stored_hash: String = conn.query_row(
-        "SELECT password FROM users WHERE username = ?1 AND active = 1",
-        [username],
-        |row| row.get(0),
-    ).map_err(|e| format!("Usuario no encontrado: {}", e))?;
+    let stored_hash: String = conn
+        .query_row(
+            "SELECT password FROM users WHERE username = ?1 AND active = 1",
+            [username],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Usuario no encontrado: {}", e))?;
 
-    let parsed_hash = PasswordHash::new(&stored_hash)
-        .map_err(|e| format!("Error al leer hash: {}", e))?;
+    let parsed_hash =
+        PasswordHash::new(&stored_hash).map_err(|e| format!("Error al leer hash: {}", e))?;
 
-    if Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok() {
+    if Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok()
+    {
         Ok(true)
     } else {
         Ok(false)
@@ -127,7 +118,8 @@ pub fn get_user_info(conn: &Connection, username: &str) -> Option<(i64, String, 
         "SELECT id, full_name, role FROM users WHERE username = ?1 AND active = 1",
         [username],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    ).ok()
+    )
+    .ok()
 }
 
 // ---------- Dashboard ----------
@@ -166,17 +158,10 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         |row| row.get(0),
     )?;
 
-    let total_clientes = conn.query_row(
-        "SELECT COUNT(*) FROM customers",
-        [],
-        |row| row.get(0),
-    )?;
+    let total_clientes = conn.query_row("SELECT COUNT(*) FROM customers", [], |row| row.get(0))?;
 
-    let total_proveedores = conn.query_row(
-        "SELECT COUNT(*) FROM suppliers",
-        [],
-        |row| row.get(0),
-    )?;
+    let total_proveedores =
+        conn.query_row("SELECT COUNT(*) FROM suppliers", [], |row| row.get(0))?;
 
     let ventas_mes = conn.query_row(
         "SELECT COALESCE(SUM(total), 0) FROM sales WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')",
@@ -230,7 +215,8 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
     // Nuevos campos para dashboard profesional
     let productos_activos = conn.query_row(
         "SELECT COUNT(*) FROM products WHERE active = 1",
-        [], |row| row.get(0),
+        [],
+        |row| row.get(0),
     )?;
 
     let servicios_activos = conn.query_row(
@@ -238,19 +224,16 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         [], |row| row.get(0),
     )?;
 
-    let compras_realizadas = conn.query_row(
-        "SELECT COUNT(*) FROM purchases",
-        [], |row| row.get(0),
-    )?;
+    let compras_realizadas =
+        conn.query_row("SELECT COUNT(*) FROM purchases", [], |row| row.get(0))?;
 
-    let proveedores_activos_sql = conn.query_row(
-        "SELECT COUNT(*) FROM suppliers",
-        [], |row| row.get(0),
-    )?;
+    let proveedores_activos_sql =
+        conn.query_row("SELECT COUNT(*) FROM suppliers", [], |row| row.get(0))?;
 
     let empleados_activos = conn.query_row(
         "SELECT COUNT(*) FROM employees WHERE active = 1",
-        [], |row| row.get(0),
+        [],
+        |row| row.get(0),
     )?;
 
     // Ventas últimos 30 días
@@ -279,17 +262,21 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
     let mut stmt = conn.prepare(
         "SELECT payment_method, COUNT(*) as cnt FROM sales WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime') GROUP BY payment_method"
     ).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let metodos_pago: Vec<(String, f64)> = stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
-    })?.collect::<Result<Vec<_>, _>>()?;
+    let metodos_pago: Vec<(String, f64)> = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Top 5 productos del mes
     let mut stmt = conn.prepare(
         "SELECT p.name, SUM(si.quantity) as total_vendido FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE strftime('%Y-%m', s.created_at) = strftime('%Y-%m', 'now', 'localtime') GROUP BY si.product_id ORDER BY total_vendido DESC LIMIT 5"
     ).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let top_productos_mes: Vec<(String, f64)> = stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
-    })?.collect::<Result<Vec<_>, _>>()?;
+    let top_productos_mes: Vec<(String, f64)> = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DashboardStats {
         caja_actual,
@@ -588,13 +575,23 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         (4, "Auditoría (v2.0)", MIGRATION_004_AUDIT),
         (5, "Cierre contable (v2.0)", MIGRATION_005_CLOSURES),
         (6, "Consecutivos (v2.0)", MIGRATION_006_NUMBERING),
-        (7, "Auditoría schema + índices + multi-tenancy (v2.1)", MIGRATION_007_AUDIT_SCHEMA),
+        (
+            7,
+            "Auditoría schema + índices + multi-tenancy (v2.1)",
+            MIGRATION_007_AUDIT_SCHEMA,
+        ),
+        (
+            8,
+            "Schema evolution + timestamps + soft-delete + multi-tenancy (v2.2)",
+            MIGRATION_008_SCHEMA_EVOLUTION,
+        ),
     ];
 
     for (version, description, sql) in &migrations {
         if *version > current_version {
             println!("Aplicando migración {}: {}", version, description);
-            conn.execute_batch(sql)?;
+            // AUD-008 FIX: Ejecuta la migración con tolerancia a columnas duplicadas.
+            execute_migration_batch(conn, sql)?;
             conn.execute(
                 "INSERT INTO schema_migrations (version) VALUES (?1)",
                 [*version],
@@ -603,107 +600,26 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         }
     }
 
-    // CORRECCIÓN DE AUDITORÍA: Manejar errores de ALTER adecuadamente
-    let alters = [
-        "ALTER TABLE suppliers ADD COLUMN doc_type TEXT DEFAULT 'NIT'",
-        "ALTER TABLE suppliers ADD COLUMN city TEXT DEFAULT ''",
-        "ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT ''",
-        "ALTER TABLE suppliers ADD COLUMN payment_method TEXT DEFAULT 'Transferencia'",
-        "ALTER TABLE suppliers ADD COLUMN bank_account TEXT DEFAULT ''",
-        "ALTER TABLE suppliers ADD COLUMN iva_responsible INTEGER DEFAULT 0",
-        "ALTER TABLE suppliers ADD COLUMN offers_credit INTEGER DEFAULT 0",
-        "ALTER TABLE suppliers ADD COLUMN credit_days INTEGER DEFAULT 0",
-        "ALTER TABLE suppliers ADD COLUMN credit_limit REAL DEFAULT 0.0",
-        "ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'UNIDAD'",
-        "ALTER TABLE purchases ADD COLUMN invoice_number TEXT DEFAULT ''",
-        "ALTER TABLE purchase_items ADD COLUMN product_name TEXT DEFAULT ''",
-        "ALTER TABLE purchase_items ADD COLUMN description TEXT DEFAULT ''",
-        "ALTER TABLE purchase_items ADD COLUMN iva_percent REAL DEFAULT 0",
-        "ALTER TABLE purchase_items ADD COLUMN unit TEXT DEFAULT 'UNIDAD'",
-        "ALTER TABLE customers ADD COLUMN doc_type TEXT DEFAULT 'CC'",
-        "ALTER TABLE cash_registers ADD COLUMN current_balance REAL NOT NULL DEFAULT 0",
-        "ALTER TABLE employees ADD COLUMN phone TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN email TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN city TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN address TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN hire_date TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN eps TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN arl TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN afp TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN ccf TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN payment_frequency TEXT DEFAULT 'Mensual'",
-        "ALTER TABLE employees ADD COLUMN risk_level TEXT DEFAULT 'I'",
-        "ALTER TABLE employees ADD COLUMN has_social_security INTEGER DEFAULT 0",
-        "ALTER TABLE employees ADD COLUMN department TEXT DEFAULT ''",
-        "ALTER TABLE payroll_entries ADD COLUMN payment_frequency TEXT DEFAULT 'Mensual'",
-        "ALTER TABLE payroll_entries ADD COLUMN days_worked REAL DEFAULT 30",
-        "ALTER TABLE licenses ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE expenses ADD COLUMN supplier_id INTEGER",
-        "ALTER TABLE expenses ADD COLUMN supplier_name TEXT DEFAULT ''",
-        "ALTER TABLE suppliers ADD COLUMN bank_name TEXT DEFAULT ''",
-        // ============================================================
-        // MIGRACIÓN 007: Timestamps y Soft Delete para auditoría
-        // ============================================================
-        "ALTER TABLE products ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))",
-        "ALTER TABLE products ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE products ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE sale_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))",
-        "ALTER TABLE sale_items ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE purchase_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))",
-        "ALTER TABLE purchase_items ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE sales ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE sales ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE purchases ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE purchases ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE expenses ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE expenses ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE users ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE customers ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE customers ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE suppliers ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE suppliers ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE employees ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE employees ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE receivables ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE receivables ADD COLUMN deleted_at TEXT",
-        "ALTER TABLE receivable_payments ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE physical_count_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))",
-        "ALTER TABLE physical_count_items ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE quotation_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))",
-        "ALTER TABLE quotation_items ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE inventory_movements ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE physical_counts ADD COLUMN updated_at TEXT DEFAULT ''",
-        "ALTER TABLE cash_registers ADD COLUMN updated_at TEXT DEFAULT ''",
-        // ============================================================
-        // MIGRACIÓN 007: empresa_id para multi-tenancy futuro
-        // ============================================================
-        "ALTER TABLE users ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE products ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE sales ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE purchases ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE expenses ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE customers ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE suppliers ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE employees ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE cash_registers ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE receivables ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE payables ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE quotations ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE physical_counts ADD COLUMN empresa_id INTEGER DEFAULT 1",
-        "ALTER TABLE inventory_movements ADD COLUMN empresa_id INTEGER DEFAULT 1",
-    ];
+    Ok(())
+}
 
-    for alter in alters {
-        if let Err(e) = conn.execute(alter, []) {
-            let err_msg = e.to_string();
-            if !err_msg.contains("duplicate column") {
-                eprintln!("ERROR CRÍTICO EN MIGRACIÓN ALTER: {} - {}", alter, e);
-                return Err(e);
+/// Ejecuta un bloque SQL como migración, partiendo por `;` y tolerando errores
+/// de "duplicate column" (ya existía la columna de un ALTER anterior).
+/// Cualquier otro error se propaga.
+fn execute_migration_batch(conn: &Connection, sql: &str) -> Result<()> {
+    for stmt in sql.split(';') {
+        let trimmed = stmt.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Err(e) = conn.execute(trimmed, []) {
+            let msg = e.to_string();
+            if msg.contains("duplicate column") || msg.contains("already exists") {
+                continue;
             }
+            return Err(e);
         }
     }
-
     Ok(())
 }
 
@@ -713,6 +629,119 @@ fn create_default_admin(_conn: &Connection) -> Result<()> {
     // pantalla de configuración inicial.
     Ok(())
 }
+
+/// Migración 008 (v2.2): Schema evolution — nuevas columnas en tablas existentes,
+/// timestamps universales, soft delete, empresa_id (multi-tenancy).
+/// Reemplaza los ALTERs incondicionales del bloque anterior, ahora versionado.
+const MIGRATION_008_SCHEMA_EVOLUTION: &str = r#"
+-- ============================================================
+-- MIGRACIÓN 008: Columnas adicionales (proveedores, productos,
+-- compras, empleados, timestamps, soft delete, multi-tenancy)
+-- ============================================================
+
+-- ── Proveedores ──
+ALTER TABLE suppliers ADD COLUMN doc_type TEXT DEFAULT 'NIT';
+ALTER TABLE suppliers ADD COLUMN city TEXT DEFAULT '';
+ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT '';
+ALTER TABLE suppliers ADD COLUMN payment_method TEXT DEFAULT 'Transferencia';
+ALTER TABLE suppliers ADD COLUMN bank_account TEXT DEFAULT '';
+ALTER TABLE suppliers ADD COLUMN bank_name TEXT DEFAULT '';
+ALTER TABLE suppliers ADD COLUMN iva_responsible INTEGER DEFAULT 0;
+ALTER TABLE suppliers ADD COLUMN offers_credit INTEGER DEFAULT 0;
+ALTER TABLE suppliers ADD COLUMN credit_days INTEGER DEFAULT 0;
+ALTER TABLE suppliers ADD COLUMN credit_limit REAL DEFAULT 0.0;
+
+-- ── Productos ──
+ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'UNIDAD';
+
+-- ── Compras ──
+ALTER TABLE purchases ADD COLUMN invoice_number TEXT DEFAULT '';
+ALTER TABLE purchase_items ADD COLUMN product_name TEXT DEFAULT '';
+ALTER TABLE purchase_items ADD COLUMN description TEXT DEFAULT '';
+ALTER TABLE purchase_items ADD COLUMN iva_percent REAL DEFAULT 0;
+ALTER TABLE purchase_items ADD COLUMN unit TEXT DEFAULT 'UNIDAD';
+
+-- ── Clientes ──
+ALTER TABLE customers ADD COLUMN doc_type TEXT DEFAULT 'CC';
+
+-- ── Caja ──
+ALTER TABLE cash_registers ADD COLUMN current_balance REAL NOT NULL DEFAULT 0;
+
+-- ── Empleados ──
+ALTER TABLE employees ADD COLUMN phone TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN email TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN city TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN address TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN hire_date TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN eps TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN arl TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN afp TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN ccf TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN payment_frequency TEXT DEFAULT 'Mensual';
+ALTER TABLE employees ADD COLUMN risk_level TEXT DEFAULT 'I';
+ALTER TABLE employees ADD COLUMN has_social_security INTEGER DEFAULT 0;
+ALTER TABLE employees ADD COLUMN department TEXT DEFAULT '';
+
+-- ── Nómina ──
+ALTER TABLE payroll_entries ADD COLUMN payment_frequency TEXT DEFAULT 'Mensual';
+ALTER TABLE payroll_entries ADD COLUMN days_worked REAL DEFAULT 30;
+
+-- ── Licencias ──
+ALTER TABLE licenses ADD COLUMN active INTEGER NOT NULL DEFAULT 1;
+
+-- ── Gastos ──
+ALTER TABLE expenses ADD COLUMN supplier_id INTEGER;
+ALTER TABLE expenses ADD COLUMN supplier_name TEXT DEFAULT '';
+
+-- ── Timestamps y Soft Delete ──
+ALTER TABLE products ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'));
+ALTER TABLE products ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE products ADD COLUMN deleted_at TEXT;
+ALTER TABLE sale_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'));
+ALTER TABLE sale_items ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE purchase_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'));
+ALTER TABLE purchase_items ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE sales ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE sales ADD COLUMN deleted_at TEXT;
+ALTER TABLE purchases ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE purchases ADD COLUMN deleted_at TEXT;
+ALTER TABLE expenses ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE expenses ADD COLUMN deleted_at TEXT;
+ALTER TABLE users ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN deleted_at TEXT;
+ALTER TABLE customers ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE customers ADD COLUMN deleted_at TEXT;
+ALTER TABLE suppliers ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE suppliers ADD COLUMN deleted_at TEXT;
+ALTER TABLE employees ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE employees ADD COLUMN deleted_at TEXT;
+ALTER TABLE receivables ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE receivables ADD COLUMN deleted_at TEXT;
+ALTER TABLE receivable_payments ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE physical_count_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'));
+ALTER TABLE physical_count_items ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE quotation_items ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'));
+ALTER TABLE quotation_items ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE inventory_movements ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE physical_counts ADD COLUMN updated_at TEXT DEFAULT '';
+ALTER TABLE cash_registers ADD COLUMN updated_at TEXT DEFAULT '';
+
+-- ── empresa_id para multi-tenancy futuro ──
+ALTER TABLE users ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE products ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE sales ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE purchases ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE expenses ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE customers ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE suppliers ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE employees ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE cash_registers ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE receivables ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE payables ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE quotations ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE physical_counts ADD COLUMN empresa_id INTEGER DEFAULT 1;
+ALTER TABLE inventory_movements ADD COLUMN empresa_id INTEGER DEFAULT 1;
+"#;
 
 pub fn init_db() -> Result<Connection> {
     let conn = open_database()?;
@@ -901,4 +930,3 @@ CREATE INDEX IF NOT EXISTS idx_receivables_status ON receivables(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_entries_period ON payroll_entries(period);
 CREATE INDEX IF NOT EXISTS idx_physical_counts_status ON physical_counts(status);
 "#;
-

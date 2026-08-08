@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
 use crate::utils::parse_f64;
+use crate::AppState;
+use tauri::State;
 
 #[tauri::command]
 pub fn create_employee(
@@ -116,12 +116,14 @@ pub fn update_employee(
         fondo_cesantias: fondo_cesantias,
         active,
     };
-    crate::payroll::update_employee(&conn, &e).map_err(|e| format!("Error al actualizar empleado: {}", e))
+    crate::payroll::update_employee(&conn, &e)
+        .map_err(|e| format!("Error al actualizar empleado: {}", e))
 }
 
 #[tauri::command]
 pub fn delete_employee(state: State<AppState>, id: i64) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::payroll::delete_employee(&conn, id).map_err(|e| format!("Error al eliminar empleado: {}", e))
+    crate::payroll::delete_employee(&conn, id)
+        .map_err(|e| format!("Error al eliminar empleado: {}", e))
 }

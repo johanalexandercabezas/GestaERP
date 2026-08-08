@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccountingClosureRow {
@@ -55,24 +55,19 @@ pub fn list_accounting_closures(
 
     let sd_clone = start_date.clone();
     let ed_clone = end_date.clone();
-    let (where_clause, params): (String, Vec<String>) = if let (Some(ref sd), Some(ref ed)) = (&start_date, &end_date) {
-        (
-            "WHERE closure_date >= ?1 AND closure_date <= ?2".to_string(),
-            vec![sd.clone(), ed.clone()],
-        )
-    } else if let Some(sd) = sd_clone {
-        (
-            "WHERE closure_date >= ?1".to_string(),
-            vec![sd],
-        )
-    } else if let Some(ed) = ed_clone {
-        (
-            "WHERE closure_date <= ?1".to_string(),
-            vec![ed],
-        )
-    } else {
-        (String::new(), Vec::new())
-    };
+    let (where_clause, params): (String, Vec<String>) =
+        if let (Some(ref sd), Some(ref ed)) = (&start_date, &end_date) {
+            (
+                "WHERE closure_date >= ?1 AND closure_date <= ?2".to_string(),
+                vec![sd.clone(), ed.clone()],
+            )
+        } else if let Some(sd) = sd_clone {
+            ("WHERE closure_date >= ?1".to_string(), vec![sd])
+        } else if let Some(ed) = ed_clone {
+            ("WHERE closure_date <= ?1".to_string(), vec![ed])
+        } else {
+            (String::new(), Vec::new())
+        };
 
     let query = format!(
         "SELECT c.id, c.user_id, COALESCE(u.username, 'Desconocido') as username, c.closure_date, c.cash_sales, c.card_sales, c.transfer_sales, c.total_income, c.expenses, c.net_result, c.observations, c.created_at
@@ -83,24 +78,27 @@ pub fn list_accounting_closures(
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-        Ok(AccountingClosureRow {
-            id: row.get(0)?,
-            user_id: row.get(1)?,
-            username: row.get(2)?,
-            closure_date: row.get(3)?,
-            cash_sales: row.get(4)?,
-            card_sales: row.get(5)?,
-            transfer_sales: row.get(6)?,
-            total_income: row.get(7)?,
-            expenses: row.get(8)?,
-            net_result: row.get(9)?,
-            observations: row.get(10)?,
-            created_at: row.get(11)?,
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(params), |row| {
+            Ok(AccountingClosureRow {
+                id: row.get(0)?,
+                user_id: row.get(1)?,
+                username: row.get(2)?,
+                closure_date: row.get(3)?,
+                cash_sales: row.get(4)?,
+                card_sales: row.get(5)?,
+                transfer_sales: row.get(6)?,
+                total_income: row.get(7)?,
+                expenses: row.get(8)?,
+                net_result: row.get(9)?,
+                observations: row.get(10)?,
+                created_at: row.get(11)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

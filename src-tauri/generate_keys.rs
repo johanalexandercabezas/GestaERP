@@ -1,14 +1,17 @@
+use chrono::Utc;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use chrono::Utc;
 use std::env;
 
-const DEFAULT_SECRET_KEY: &str = "GestaERP_2026_SecureKey_Colombia";
 const LICENSE_DAYS: i64 = 30;
 
-/// Obtiene la clave secreta desde variable de entorno o usa el valor por defecto
+/// Obtiene la clave secreta desde variable de entorno. Aborta si no está configurada.
 fn get_secret_key() -> String {
-    env::var("GESTAERP_SECRET_KEY").unwrap_or_else(|_| DEFAULT_SECRET_KEY.to_string())
+    env::var("GESTAERP_SECRET_KEY").unwrap_or_else(|_| {
+        eprintln!("ERROR: GESTAERP_SECRET_KEY no está configurada.");
+        eprintln!("Define esta variable de entorno antes de ejecutar el keygen.");
+        std::process::exit(1);
+    })
 }
 
 fn plan_to_prefix(plan: &str) -> &str {
@@ -48,11 +51,11 @@ fn main() {
     } else {
         LICENSE_DAYS
     };
-    
+
     println!("");
     println!("🔑 LLAVE GENERADA:");
     println!("━━━━━━━━━━━━━━━━━━━");
-    
+
     let secret = get_secret_key();
     for offset in 0..5 {
         let date = Utc::now().date_naive() - chrono::Duration::days(offset);
@@ -68,7 +71,7 @@ fn main() {
             println!("     {}", key);
         }
     }
-    
+
     println!("━━━━━━━━━━━━━━━━━━━");
     println!("Plan: {} | Duración: {} días", plan, days);
     println!("");

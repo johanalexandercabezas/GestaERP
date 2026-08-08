@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -33,8 +33,7 @@ pub fn apply_update(
 
     // 2. Backup de la base de datos antes de actualizar
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let data_dir = dirs::data_dir()
-        .ok_or("No se encontró el directorio de datos")?;
+    let data_dir = dirs::data_dir().ok_or("No se encontró el directorio de datos")?;
     let db_path = data_dir.join("GestaERP").join("gestaerp.db");
     let backup_dir = data_dir.join("GestaERP").join("backups").join("pre_update");
     std::fs::create_dir_all(&backup_dir)
@@ -54,7 +53,8 @@ pub fn apply_update(
     // 3. Obtener ruta del ejecutable actual
     let current_exe = std::env::current_exe()
         .map_err(|e| format!("Error obteniendo ruta del ejecutable actual: {}", e))?;
-    let current_dir = current_exe.parent()
+    let current_dir = current_exe
+        .parent()
         .ok_or("No se pudo determinar el directorio de la aplicación")?;
 
     // 4. Crear script batch que reemplace el .exe al salir

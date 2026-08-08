@@ -1,7 +1,7 @@
+use chrono::Utc;
+use rand::Rng;
 use rusqlite::{Connection, Result};
 use serde::Serialize;
-use rand::Rng;
-use chrono::Utc;
 
 /// Estructura para el estado de implementación
 #[derive(Serialize, Debug, Clone)]
@@ -31,7 +31,9 @@ pub fn create_table(conn: &Connection) -> Result<()> {
 fn generate_code() -> String {
     let chars: Vec<char> = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".chars().collect();
     let mut rng = rand::thread_rng();
-    (0..6).map(|_| chars[rng.gen_range(0..chars.len())]).collect()
+    (0..6)
+        .map(|_| chars[rng.gen_range(0..chars.len())])
+        .collect()
 }
 
 /// Verifica si ya existe un código de implementación para esta instalación

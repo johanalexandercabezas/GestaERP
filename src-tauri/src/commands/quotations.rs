@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QuotationItemInput {
@@ -42,11 +42,13 @@ fn get_next_consecutive(conn: &rusqlite::Connection) -> Result<String, String> {
     let prefix = "COT-";
     let length = 6;
 
-    let last: Option<String> = conn.query_row(
-        "SELECT consecutive FROM quotations ORDER BY id DESC LIMIT 1",
-        [],
-        |row| row.get(0),
-    ).ok();
+    let last: Option<String> = conn
+        .query_row(
+            "SELECT consecutive FROM quotations ORDER BY id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
 
     let next_number = match last {
         Some(consecutive) => {
@@ -130,31 +132,34 @@ pub fn list_quotations(
     let mut stmt = conn.prepare(query).map_err(|e| e.to_string())?;
     let params = status_filter.map(|s| [s]).unwrap_or_default();
 
-    let rows = stmt.query_map(params, |row| {
-        Ok(QuotationRow {
-            id: row.get(0)?,
-            consecutive: row.get(1)?,
-            date: row.get(2)?,
-            due_date: row.get(3)?,
-            customer_id: row.get(4)?,
-            customer_name: row.get(5)?,
-            customer_doc: row.get(6)?,
-            items: row.get(7)?,
-            subtotal: row.get(8)?,
-            iva_percent: row.get(9)?,
-            iva_amount: row.get(10)?,
-            discount_percent: row.get(11)?,
-            discount_amount: row.get(12)?,
-            total: row.get(13)?,
-            observations: row.get(14)?,
-            status: row.get(15)?,
-            created_by: row.get(16)?,
-            created_at: row.get(17)?,
-            updated_at: row.get(18)?,
+    let rows = stmt
+        .query_map(params, |row| {
+            Ok(QuotationRow {
+                id: row.get(0)?,
+                consecutive: row.get(1)?,
+                date: row.get(2)?,
+                due_date: row.get(3)?,
+                customer_id: row.get(4)?,
+                customer_name: row.get(5)?,
+                customer_doc: row.get(6)?,
+                items: row.get(7)?,
+                subtotal: row.get(8)?,
+                iva_percent: row.get(9)?,
+                iva_amount: row.get(10)?,
+                discount_percent: row.get(11)?,
+                discount_amount: row.get(12)?,
+                total: row.get(13)?,
+                observations: row.get(14)?,
+                status: row.get(15)?,
+                created_by: row.get(16)?,
+                created_at: row.get(17)?,
+                updated_at: row.get(18)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -192,14 +197,19 @@ pub fn get_quotation(state: State<AppState>, id: i64) -> Result<QuotationRow, St
 }
 
 #[tauri::command]
-pub fn update_quotation_status(state: State<AppState>, id: i64, new_status: String) -> Result<(), String> {
+pub fn update_quotation_status(
+    state: State<AppState>,
+    id: i64,
+    new_status: String,
+) -> Result<(), String> {
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
     conn.execute(
         "UPDATE quotations SET status = ?1, updated_at = datetime('now','localtime') WHERE id = ?2",
         [new_status, id.to_string()],
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -226,33 +236,35 @@ pub fn convert_quotation_to_sale(
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    let quotation: QuotationRow = conn.query_row(
-        "SELECT * FROM quotations WHERE id = ?1",
-        [quotation_id],
-        |row| {
-            Ok(QuotationRow {
-                id: row.get(0)?,
-                consecutive: row.get(1)?,
-                date: row.get(2)?,
-                due_date: row.get(3)?,
-                customer_id: row.get(4)?,
-                customer_name: row.get(5)?,
-                customer_doc: row.get(6)?,
-                items: row.get(7)?,
-                subtotal: row.get(8)?,
-                iva_percent: row.get(9)?,
-                iva_amount: row.get(10)?,
-                discount_percent: row.get(11)?,
-                discount_amount: row.get(12)?,
-                total: row.get(13)?,
-                observations: row.get(14)?,
-                status: row.get(15)?,
-                created_by: row.get(16)?,
-                created_at: row.get(17)?,
-                updated_at: row.get(18)?,
-            })
-        },
-    ).map_err(|e| e.to_string())?;
+    let quotation: QuotationRow = conn
+        .query_row(
+            "SELECT * FROM quotations WHERE id = ?1",
+            [quotation_id],
+            |row| {
+                Ok(QuotationRow {
+                    id: row.get(0)?,
+                    consecutive: row.get(1)?,
+                    date: row.get(2)?,
+                    due_date: row.get(3)?,
+                    customer_id: row.get(4)?,
+                    customer_name: row.get(5)?,
+                    customer_doc: row.get(6)?,
+                    items: row.get(7)?,
+                    subtotal: row.get(8)?,
+                    iva_percent: row.get(9)?,
+                    iva_amount: row.get(10)?,
+                    discount_percent: row.get(11)?,
+                    discount_amount: row.get(12)?,
+                    total: row.get(13)?,
+                    observations: row.get(14)?,
+                    status: row.get(15)?,
+                    created_by: row.get(16)?,
+                    created_at: row.get(17)?,
+                    updated_at: row.get(18)?,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
 
     if quotation.status != "Aprobada" {
         return Err("Solo se pueden convertir cotizaciones aprobadas".to_string());
@@ -261,13 +273,20 @@ pub fn convert_quotation_to_sale(
     // Crear venta
     conn.execute(
         "INSERT INTO sales (user_id, customer_id, total, payment_method) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![quotation.created_by, quotation.customer_id, quotation.total, payment_method],
-    ).map_err(|e| e.to_string())?;
+        rusqlite::params![
+            quotation.created_by,
+            quotation.customer_id,
+            quotation.total,
+            payment_method
+        ],
+    )
+    .map_err(|e| e.to_string())?;
 
     let sale_id = conn.last_insert_rowid();
 
     // Insertar items de la cotización como items de venta
-    let items: Vec<QuotationItemInput> = serde_json::from_str(&quotation.items).map_err(|e| e.to_string())?;
+    let items: Vec<QuotationItemInput> =
+        serde_json::from_str(&quotation.items).map_err(|e| e.to_string())?;
     for item in items {
         if let Some(product_id) = item.product_id {
             let item_total = item.quantity * item.unit_price;

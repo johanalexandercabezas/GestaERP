@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 /// Fila de auditoría alineada con el schema REAL de MIGRATION_004:
 /// audit_logs(id, user_id, username, table_name, record_id, action,
@@ -89,22 +89,28 @@ pub fn get_audit_logs(
     params.push(Box::new(limit_val));
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
-        Ok(AuditLogRow {
-            id: row.get(0)?,
-            user_id: row.get(1)?,
-            username: row.get(2)?,
-            table_name: row.get(3)?,
-            record_id: row.get(4)?,
-            action: row.get(5)?,
-            old_values: row.get(6)?,
-            new_values: row.get(7)?,
-            created_at: row.get(8)?,
-            machine_name: row.get(9)?,
-        })
-    }).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(
+            rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+            |row| {
+                Ok(AuditLogRow {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    username: row.get(2)?,
+                    table_name: row.get(3)?,
+                    record_id: row.get(4)?,
+                    action: row.get(5)?,
+                    old_values: row.get(6)?,
+                    new_values: row.get(7)?,
+                    created_at: row.get(8)?,
+                    machine_name: row.get(9)?,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -112,30 +118,34 @@ pub fn get_audit_summary(state: State<AppState>) -> Result<AuditSummary, String>
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    let total_events: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM audit_logs",
-        [],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total_events: i64 = conn
+        .query_row("SELECT COUNT(*) FROM audit_logs", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
 
-    let today_events: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM audit_logs WHERE date(created_at) = date('now','localtime')",
-        [],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let today_events: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM audit_logs WHERE date(created_at) = date('now','localtime')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     let mut stmt = conn.prepare(
         "SELECT action, COUNT(*) as cnt FROM audit_logs GROUP BY action ORDER BY cnt DESC LIMIT 10",
     ).map_err(|e| e.to_string())?;
 
-    let events_by_type = stmt.query_map([], |row| {
-        Ok(TypeCount {
-            action: row.get(0)?,
-            count: row.get(1)?,
+    let events_by_type = stmt
+        .query_map([], |row| {
+            Ok(TypeCount {
+                action: row.get(0)?,
+                count: row.get(1)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    let types: Vec<TypeCount> = events_by_type.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    let types: Vec<TypeCount> = events_by_type
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
     Ok(AuditSummary {
         total_events,
@@ -164,7 +174,9 @@ pub fn export_audit_logs_csv(
         Some(10000),
     )?;
 
-    let mut csv = String::from("Fecha,Usuario,Tabla,Registro,Acción,Valores Anteriores,Valores Nuevos,Máquina\n");
+    let mut csv = String::from(
+        "Fecha,Usuario,Tabla,Registro,Acción,Valores Anteriores,Valores Nuevos,Máquina\n",
+    );
     for log in &logs {
         csv.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",
@@ -175,10 +187,16 @@ pub fn export_audit_logs_csv(
             log.action,
             log.old_values.clone().unwrap_or_default().replace(',', ";"),
             log.new_values.clone().unwrap_or_default().replace(',', ";"),
-            log.machine_name.clone().unwrap_or_default().replace(',', ";"),
+            log.machine_name
+                .clone()
+                .unwrap_or_default()
+                .replace(',', ";"),
         ));
     }
 
-    let filename = format!("auditoria_{}.csv", chrono::Local::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "auditoria_{}.csv",
+        chrono::Local::now().format("%Y%m%d_%H%M%S")
+    );
     Ok((csv, filename))
 }

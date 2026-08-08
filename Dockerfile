@@ -1,6 +1,12 @@
 # ============================================================
 # GestaERP — Dockerfile (Build + Runtime)
 # ============================================================
+# ⚠️ AUD-013: Este Dockerfile es EXPERIMENTAL. GestaERP es una aplicación
+# de escritorio Tauri, no un servicio web. El binario `appsdesktop` no
+# está diseñado para ejecutarse como servidor en un contenedor.
+# Para despliegue de escritorio usar: npm run tauri build (instalador MSI/EXE).
+# Para una futura versión web: separar backend (Axum/Actix) + frontend estático.
+# ============================================================
 # Etapa 1: Construcción del frontend
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app

@@ -31,10 +31,15 @@ pub fn validate_required(value: &str, field_name: &str, max_len: usize) -> Resul
 pub fn validate_name(value: &str, field_name: &str) -> Result<String, String> {
     let cleaned = validate_required(value, field_name, 200)?;
     // Permitir caracteres latinos, espacios, guiones, números
-    if !cleaned
-        .chars()
-        .all(|c| c.is_alphanumeric() || c.is_whitespace() || c == '-' || c == '_' || c == '.' || c == '&' || c == '\'')
-    {
+    if !cleaned.chars().all(|c| {
+        c.is_alphanumeric()
+            || c.is_whitespace()
+            || c == '-'
+            || c == '_'
+            || c == '.'
+            || c == '&'
+            || c == '\''
+    }) {
         return Err(format!(
             "El campo '{}' contiene caracteres no permitidos",
             field_name
@@ -89,7 +94,10 @@ pub fn validate_email(value: &str) -> Result<String, String> {
 /// Valida un número de teléfono colombiano (formato simple).
 #[allow(dead_code)]
 pub fn validate_phone(value: &str) -> Result<String, String> {
-    let cleaned: String = value.chars().filter(|c| c.is_digit(10) || *c == '+').collect();
+    let cleaned: String = value
+        .chars()
+        .filter(|c| c.is_digit(10) || *c == '+')
+        .collect();
     if cleaned.is_empty() {
         return Ok(cleaned); // Teléfono opcional
     }
@@ -102,7 +110,10 @@ pub fn validate_phone(value: &str) -> Result<String, String> {
 /// Valida un NIT colombiano (formato simple: dígitos + posible guión).
 #[allow(dead_code)]
 pub fn validate_nit(value: &str) -> Result<String, String> {
-    let cleaned: String = value.chars().filter(|c| c.is_digit(10) || *c == '-').collect();
+    let cleaned: String = value
+        .chars()
+        .filter(|c| c.is_digit(10) || *c == '-')
+        .collect();
     if cleaned.is_empty() {
         return Ok(cleaned);
     }
@@ -112,14 +123,20 @@ pub fn validate_nit(value: &str) -> Result<String, String> {
 /// Valida un número decimal positivo.
 #[allow(dead_code)]
 pub fn validate_positive_f64(value: &str, field_name: &str) -> Result<f64, String> {
-    let num = value
-        .parse::<f64>()
-        .map_err(|_| format!("El campo '{}' no es un número válido: {}", field_name, value))?;
+    let num = value.parse::<f64>().map_err(|_| {
+        format!(
+            "El campo '{}' no es un número válido: {}",
+            field_name, value
+        )
+    })?;
     if num < 0.0 {
         return Err(format!("El campo '{}' no puede ser negativo", field_name));
     }
     if !num.is_finite() {
-        return Err(format!("El campo '{}' tiene un valor no permitido", field_name));
+        return Err(format!(
+            "El campo '{}' tiene un valor no permitido",
+            field_name
+        ));
     }
     Ok(num)
 }
@@ -127,9 +144,12 @@ pub fn validate_positive_f64(value: &str, field_name: &str) -> Result<f64, Strin
 /// Valida un número entero positivo.
 #[allow(dead_code)]
 pub fn validate_positive_i64(value: &str, field_name: &str) -> Result<i64, String> {
-    let num = value
-        .parse::<i64>()
-        .map_err(|_| format!("El campo '{}' no es un número válido: {}", field_name, value))?;
+    let num = value.parse::<i64>().map_err(|_| {
+        format!(
+            "El campo '{}' no es un número válido: {}",
+            field_name, value
+        )
+    })?;
     if num < 0 {
         return Err(format!("El campo '{}' no puede ser negativo", field_name));
     }

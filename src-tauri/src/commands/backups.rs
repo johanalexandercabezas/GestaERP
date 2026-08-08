@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
 use crate::backup;
+use crate::AppState;
+use tauri::State;
 
 #[tauri::command]
 pub fn create_backup(state: State<AppState>) -> Result<backup::BackupInfo, String> {
@@ -28,13 +28,20 @@ pub fn delete_backup(state: State<AppState>, filename: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn export_backup(state: State<AppState>, filename: String, dest_path: String) -> Result<backup::BackupInfo, String> {
+pub fn export_backup(
+    state: State<AppState>,
+    filename: String,
+    dest_path: String,
+) -> Result<backup::BackupInfo, String> {
     auth_guard::require_admin(&state)?;
     backup::export_backup_to_path(&filename, &dest_path)
 }
 
 #[tauri::command]
-pub fn import_backup(state: State<AppState>, source_path: String) -> Result<backup::BackupInfo, String> {
+pub fn import_backup(
+    state: State<AppState>,
+    source_path: String,
+) -> Result<backup::BackupInfo, String> {
     auth_guard::require_admin(&state)?;
     backup::import_backup_from_path(&source_path)
 }

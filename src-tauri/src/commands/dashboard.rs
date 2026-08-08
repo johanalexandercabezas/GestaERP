@@ -1,6 +1,6 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
+use tauri::State;
 
 #[tauri::command]
 pub fn get_dashboard_data(state: State<AppState>) -> Result<crate::db::DashboardStats, String> {

@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InventoryMovementRow {
@@ -70,21 +70,24 @@ pub fn get_inventory_movements(
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-        Ok(InventoryMovementRow {
-            id: row.get(0)?,
-            product_id: row.get(1)?,
-            product_name: row.get(2)?,
-            movement_type: row.get(3)?,
-            quantity: row.get(4)?,
-            unit_price: row.get(5)?,
-            reason: row.get(6)?,
-            created_at: row.get(7)?,
-            user_id: row.get(8)?,
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(params), |row| {
+            Ok(InventoryMovementRow {
+                id: row.get(0)?,
+                product_id: row.get(1)?,
+                product_name: row.get(2)?,
+                movement_type: row.get(3)?,
+                quantity: row.get(4)?,
+                unit_price: row.get(5)?,
+                reason: row.get(6)?,
+                created_at: row.get(7)?,
+                user_id: row.get(8)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -102,7 +105,8 @@ pub fn get_product_kardex(
         "SELECT name FROM products WHERE id = ?1",
         [product_id],
         |row| row.get::<_, String>(0),
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     // Obtener saldo inicial (antes de start_date)
     // Clonamos para evitar mover start_date/end_date y poder usarlas después
@@ -151,16 +155,21 @@ pub fn get_product_kardex(
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, f64>(2)?,
-            row.get::<_, Option<f64>>(3)?,
-            row.get::<_, Option<String>>(4)?,
-            row.get::<_, String>(5)?,
-        ))
-    }).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(
+            rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, Option<f64>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
 
     let mut kardex: Vec<KardexItem> = Vec::new();
     let mut running_balance = initial_balance;
@@ -225,6 +234,9 @@ pub fn export_kardex_csv(
         ));
     }
 
-    let filename = format!("kardex_{}.csv", chrono::Local::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "kardex_{}.csv",
+        chrono::Local::now().format("%Y%m%d_%H%M%S")
+    );
     Ok((csv, filename))
 }

@@ -33,6 +33,7 @@ const AuditView = lazy(() => import("./views/AuditView"));
 const AccountingView = lazy(() => import("./views/AccountingView"));
 const ForceOpenCashModal = lazy(() => import("./views/ForceOpenCashModal"));
 const HelpAssistant = lazy(() => import("./views/HelpAssistant"));
+const GestaHelpView = lazy(() => import("./views/GestaHelpView"));
 import { useThemeStore } from "./stores/theme-store";
 import PremiumToaster from "./components/ui/PremiumToast";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -41,14 +42,12 @@ import {
   LayoutDashboard, Package, ShoppingCart, ClipboardList, Building2,
   Users, UserCog, Banknote, Receipt, HandCoins, FileBarChart, HardDrive,
   Briefcase, DollarSign, Bell, Sun, Moon, ChevronLeft, ChevronRight,
-  Shield, AlertTriangle, ClipboardCheck, Calendar, Info, Headphones, FileText, FileSpreadsheet, Activity
+  Shield, AlertTriangle, ClipboardCheck, Calendar, Info, Headphones, FileText, FileSpreadsheet, Activity, Sparkles
 } from "lucide-react";
+import type { UserInfo, LicenseInfo, NotificationItem } from "./types/auth";
+import { ROLES } from "./types/auth";
 
-interface UserInfo { id: number; full_name: string; role: string; }
-interface LicenseInfo { plan: string; activated: boolean; expires_at: string; max_users: number; days_left: number; modules: string[]; }
-interface NotificationItem { type: string; message: string; priority: string; }
-
-type View = "dashboard" | "products" | "pos" | "purchases" | "services" | "quotations" | "payables" | "kardex" | "suppliers" | "cash" | "backups" | "customers" | "reports" | "users" | "expenses" | "receivables" | "employees" | "payroll" | "physical_inventory" | "audit" | "accounting" | "calendar" | "acerca";
+type View = "dashboard" | "products" | "pos" | "purchases" | "services" | "quotations" | "payables" | "kardex" | "suppliers" | "cash" | "backups" | "customers" | "reports" | "users" | "expenses" | "receivables" | "employees" | "payroll" | "physical_inventory" | "audit" | "accounting" | "calendar" | "acerca" | "gestahelp";
 
 const menuItems = [
   { view: "dashboard" as View, icon: LayoutDashboard, label: "Dashboard" },
@@ -73,6 +72,7 @@ const menuItems = [
   { view: "calendar" as View, icon: Calendar, label: "Calendario" },
   { view: "users" as View, icon: UserCog, label: "Usuarios", adminOnly: true },
   { view: "acerca" as View, icon: Info, label: "Acerca de" },
+  { view: "gestahelp" as View, icon: Sparkles, label: "⭐ GestaHelp" },
 ];
 
 function App() {
@@ -134,7 +134,7 @@ function App() {
   }, []);
 
   const checkCashStatus = async (user: UserInfo) => {
-    if (user.role === "cashier") {
+    if (user.role === ROLES.CASHIER) {
       try {
         const openReg = await invoke<any | null>("get_open_register");
         setCashOpen(openReg !== null);
@@ -242,7 +242,7 @@ function App() {
   else if (currentView === "services") currentViewComponent = <ServicesView />;
   else if (currentView === "quotations") currentViewComponent = <QuotationsView />;
   else if (currentView === "kardex") currentViewComponent = <KardexView />;
-  else if (currentView === "physical_inventory" && allowed.includes("physical_inventory") && currentUser.role === "admin") currentViewComponent = <PhysicalInventoryView />;
+  else if (currentView === "physical_inventory" && allowed.includes("physical_inventory") && currentUser.role === ROLES.ADMIN) currentViewComponent = <PhysicalInventoryView />;
   else if (currentView === "audit") currentViewComponent = <AuditView />;
   else if (currentView === "accounting") currentViewComponent = <AccountingView />;
   else if (currentView === "suppliers" && allowed.includes("suppliers")) currentViewComponent = <SuppliersView />;
@@ -256,8 +256,9 @@ function App() {
   else if (currentView === "reports" && allowed.includes("reports")) currentViewComponent = <ReportsView />;
   else if (currentView === "backups" && allowed.includes("backups")) currentViewComponent = <BackupView />;
   else if (currentView === "calendar") currentViewComponent = <CalendarView />;
-  else if (currentView === "users" && allowed.includes("users") && currentUser.role === "admin") currentViewComponent = <UsersView />;
+  else if (currentView === "users" && allowed.includes("users") && currentUser.role === ROLES.ADMIN) currentViewComponent = <UsersView />;
   else if (currentView === "acerca") currentViewComponent = <AcercaView />;
+  else if (currentView === "gestahelp") currentViewComponent = <GestaHelpView view={currentView} />;
   else currentViewComponent = <DashboardView />;
 
   return (
@@ -313,8 +314,8 @@ function App() {
           </motion.button>
 
           {menuItems.map((item, index) => {
-            if (item.adminOnly && currentUser.role !== "admin") return null;
-            if (!allowed.includes(item.view) && item.view !== "acerca" && item.view !== "calendar" && item.view !== "services") return null;
+            if (item.adminOnly && currentUser.role !== ROLES.ADMIN) return null;
+            if (!allowed.includes(item.view) && item.view !== "acerca" && item.view !== "calendar" && item.view !== "services" && item.view !== "gestahelp") return null;
             const Icon = item.icon;
             return (
               <motion.button key={item.view} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03 }}

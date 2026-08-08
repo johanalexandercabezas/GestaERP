@@ -1,7 +1,7 @@
-use tauri::State;
+use crate::AppInfo;
 use crate::AppState;
 use chrono::Local;
-use crate::AppInfo;
+use tauri::State;
 
 #[tauri::command]
 pub fn get_app_info() -> AppInfo {

@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
 use crate::sales;
+use crate::AppState;
+use tauri::State;
 
 #[tauri::command]
 pub fn create_sale_v2(

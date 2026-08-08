@@ -25,11 +25,32 @@ env_logger = "0.11"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
-# NOTA P0-06: La feature "sqlcipher" requiere sqlcipher.lib del sistema (no compila).
-# "bundled-sqlcipher" requiere OpenSSL. Para la versión desktop local se usa SQLite
-# estándar "bundled" (PRAGMA key se ignora). Para cifrado real en producción:
-#   - Windows: instalar SQLCipher y usar features = ["bundled", "sqlcipher"]
-#   - O usar features = ["bundled-sqlcipher"] con OpenSSL disponible
+# NOTA P0-06 / AUD-002: Cifrado de base de datos
+# ============================================================
+# ACTUAL: rusqlite "bundled" = SQLite estándar SIN cifrado.
+# El PRAGMA key en db.rs se ejecuta pero se IGNORA completamente.
+# La BD gestaerp.db es legible con cualquier herramienta SQLite.
+#
+# PARA ACTIVAR CIFRADO REAL (requiere recompilación + migración de datos):
+#
+# Opción A — SQLCipher con compilación propia (recomendado Windows):
+#   1. Instalar vcpkg: git clone https://github.com/Microsoft/vcpkg
+#   2. vcpkg install sqlcipher:x64-windows
+#   3. Cambiar features a: ["bundled", "sqlcipher"]
+#   4. Recompilar: cargo build --release
+#   5. Exportar BD existente, borrar gestaerp.db, importar (la BD cifrada
+#      no es compatible con la BD sin cifrar)
+#
+# Opción B — bundled-sqlcipher (requiere OpenSSL):
+#   1. Instalar OpenSSL (choco install openssl / vcpkg install openssl)
+#   2. Cambiar features a: ["bundled-sqlcipher"]
+#   3. Recompilar + migrar datos igual que Opción A
+#
+# ⚠️ ADVERTENCIA: Activar cifrado cambia el formato de la BD.
+#   - Hacer backup completo antes de migrar.
+#   - La clave derivada de máquina (crypto.rs) debe preservarse.
+#   - Si se pierde la clave, los datos son irrecuperables.
+#   - Probar en entorno de desarrollo antes de producción.
 rusqlite = { version = "0.31", features = ["bundled"] }
 argon2 = { version = "0.5", features = ["rand"] }
 rand = "0.8"

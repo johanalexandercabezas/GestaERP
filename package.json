@@ -11,7 +11,10 @@
     "bump:patch": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[2]++;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
     "bump:minor": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[1]++;v[2]=0;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
     "bump:major": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version.split('.');v[0]++;v[1]=0;v[2]=0;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));t.version=v.join('.');fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(t,null,2)+'\\n');const c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/version = \\\"[^\\\"]+\\\"/,'version = \\\"'+v.join('.')+'\\\"');fs.writeFileSync('src-tauri/Cargo.toml',c);console.log('Version bumped to '+v.join('.'))\"",
-    "release": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version;console.log('Creating release v'+v+'...');console.log('Run: git add -A && git commit -m release:v'+v+' && git tag v'+v+' && git push --tags')\""
+    "release": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const v=p.version;console.log('Creating release v'+v+'...');console.log('Run: git add -A && git commit -m release:v'+v+' && git tag v'+v+' && git push --tags')\"",
+    "lint": "eslint src/ --ext .ts,.tsx --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -40,11 +43,18 @@
     "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
+    "@types/node": "^20.19.0",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "eslint": "^9",
+    "@eslint/js": "^9",
+    "typescript-eslint": "^8",
+    "eslint-plugin-react-hooks": "^5",
+    "eslint-plugin-react-refresh": "^0.4",
+    "prettier": "^3"
   }
 }

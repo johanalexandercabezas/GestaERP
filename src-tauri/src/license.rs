@@ -1,7 +1,7 @@
+use chrono::{Duration, NaiveDate, Utc};
+use hmac::{Hmac, Mac};
 use rusqlite::{Connection, Result};
 use serde::Serialize;
-use chrono::{NaiveDate, Duration, Utc};
-use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
 const LICENSE_DAYS: i64 = 30;
@@ -29,18 +29,27 @@ fn plan_to_prefix(plan: &str) -> &str {
 
 fn validate_key(key: &str, expected_plan: &str) -> bool {
     let parts: Vec<&str> = key.split('-').collect();
-    if parts.len() != 3 { return false; }
-    if parts[1] != plan_to_prefix(expected_plan) { return false; }
+    if parts.len() != 3 {
+        return false;
+    }
+    if parts[1] != plan_to_prefix(expected_plan) {
+        return false;
+    }
 
     // Ventana de 5 días para generar la clave
     let secret = crate::config::get_secret_key();
     for offset in 0..5 {
         let date = Utc::now().date_naive() - Duration::days(offset);
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
-        let payload = format!("{}|{}|{}", expected_plan, LICENSE_DAYS, date.format("%Y%m%d"));
+        let payload = format!(
+            "{}|{}|{}",
+            expected_plan,
+            LICENSE_DAYS,
+            date.format("%Y%m%d")
+        );
         mac.update(payload.as_bytes());
         let result = mac.finalize().into_bytes();
-        
+
         // CORRECCIÓN DE AUDITORÍA: Aumentado de 3 a 8 bytes para prevenir fuerza bruta trivial
         if hex::encode(&result[..8]).to_uppercase() == parts[2].to_uppercase() {
             return true;
@@ -79,10 +88,13 @@ pub fn activate_license(conn: &Connection, key: &str, plan: &str) -> Result<Lice
 }
 
 pub fn activate_trial(conn: &Connection) -> Result<LicenseInfo> {
-    let exists: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM licenses WHERE active = 1",
-        [], |row| row.get(0),
-    ).unwrap_or(false);
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM licenses WHERE active = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
 
     if exists {
         return Err(rusqlite::Error::InvalidParameterName(
@@ -113,10 +125,78 @@ pub fn activate_trial(conn: &Connection) -> Result<LicenseInfo> {
 
 fn get_plan_config(plan: &str) -> (i64, Vec<&str>) {
     match plan {
-        "trial" => (1, vec!["dashboard","products","pos","purchases","suppliers","expenses","receivables","payroll","cash","reports","backups","users","employees","physical_inventory"]),
-        "basico" | "ong" => (1, vec!["dashboard","products","pos","purchases","suppliers","expenses","receivables","physical_inventory"]),
-        "intermedio" => (2, vec!["dashboard","products","pos","purchases","suppliers","expenses","receivables","payroll","cash","reports","backups","users","physical_inventory"]),
-        "avanzado" => (6, vec!["dashboard","products","pos","purchases","suppliers","expenses","receivables","payroll","cash","reports","backups","users","customization","support","physical_inventory","employees","services"]),
+        "trial" => (
+            1,
+            vec![
+                "dashboard",
+                "products",
+                "pos",
+                "purchases",
+                "suppliers",
+                "expenses",
+                "receivables",
+                "payroll",
+                "cash",
+                "reports",
+                "backups",
+                "users",
+                "employees",
+                "physical_inventory",
+            ],
+        ),
+        "basico" | "ong" => (
+            1,
+            vec![
+                "dashboard",
+                "products",
+                "pos",
+                "purchases",
+                "suppliers",
+                "expenses",
+                "receivables",
+                "physical_inventory",
+            ],
+        ),
+        "intermedio" => (
+            2,
+            vec![
+                "dashboard",
+                "products",
+                "pos",
+                "purchases",
+                "suppliers",
+                "expenses",
+                "receivables",
+                "payroll",
+                "cash",
+                "reports",
+                "backups",
+                "users",
+                "physical_inventory",
+            ],
+        ),
+        "avanzado" => (
+            6,
+            vec![
+                "dashboard",
+                "products",
+                "pos",
+                "purchases",
+                "suppliers",
+                "expenses",
+                "receivables",
+                "payroll",
+                "cash",
+                "reports",
+                "backups",
+                "users",
+                "customization",
+                "support",
+                "physical_inventory",
+                "employees",
+                "services",
+            ],
+        ),
         _ => (0, vec![]),
     }
 }
@@ -124,8 +204,13 @@ fn get_plan_config(plan: &str) -> (i64, Vec<&str>) {
 pub fn get_license_status(conn: &Connection) -> LicenseInfo {
     let row = conn.query_row(
         "SELECT plan, expires_at, max_users FROM licenses WHERE active = 1",
-        [], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+        [],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
         },
     );
 
@@ -134,7 +219,11 @@ pub fn get_license_status(conn: &Connection) -> LicenseInfo {
             let expire_date = NaiveDate::parse_from_str(&expires_str, "%Y-%m-%d")
                 .unwrap_or_else(|_| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
             let days_left = (expire_date - Utc::now().date_naive()).num_days().max(0);
-            let modules = get_plan_config(&plan).1.into_iter().map(String::from).collect();
+            let modules = get_plan_config(&plan)
+                .1
+                .into_iter()
+                .map(String::from)
+                .collect();
 
             LicenseInfo {
                 plan: plan.clone(),
@@ -176,7 +265,8 @@ mod tests {
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE licenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 license_key TEXT NOT NULL UNIQUE,
@@ -186,7 +276,9 @@ mod tests {
                 max_users INTEGER NOT NULL DEFAULT 1,
                 active INTEGER NOT NULL DEFAULT 1
             );
-        ").unwrap();
+        ",
+        )
+        .unwrap();
         conn
     }
 
@@ -204,12 +296,12 @@ mod tests {
         let conn = setup_test_db();
         let plan = "intermedio";
         let key = generate_test_key(plan, 0);
-        
+
         let info = activate_license(&conn, &key, plan).unwrap();
         assert_eq!(info.plan, plan);
         assert_eq!(info.max_users, 2);
         assert!(info.activated);
-        
+
         let status = get_license_status(&conn);
         assert_eq!(status.plan, plan);
         assert!(status.activated);
@@ -242,7 +334,7 @@ mod tests {
             "INSERT INTO licenses (license_key, plan, expires_at, max_users, active) VALUES ('KEY-123', 'basico', 'NOT-A-DATE', 1, 1)",
             [],
         ).unwrap();
-        
+
         // This should not panic, but return status with 0 days left
         let status = get_license_status(&conn);
         assert_eq!(status.plan, "basico");

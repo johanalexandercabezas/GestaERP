@@ -60,14 +60,16 @@ pub fn create_purchase(
 
     for item in items {
         if item.quantity <= 0.0 {
-            return Err(rusqlite::Error::InvalidParameterName(
-                format!("La cantidad a comprar debe ser mayor a cero para '{}'", item.product_name),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "La cantidad a comprar debe ser mayor a cero para '{}'",
+                item.product_name
+            )));
         }
         if item.unit_cost < 0.0 {
-            return Err(rusqlite::Error::InvalidParameterName(
-                format!("El costo unitario no puede ser negativo para '{}'", item.product_name),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "El costo unitario no puede ser negativo para '{}'",
+                item.product_name
+            )));
         }
         // Las compras solo ingresan PRODUCTOS (UNIDAD). Los SERVICIOS no se compran.
         let unit = item.unit.to_uppercase();
@@ -187,7 +189,8 @@ mod tests {
 
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE products (
                 id INTEGER PRIMARY KEY,
                 sku TEXT UNIQUE,
@@ -232,7 +235,9 @@ mod tests {
                 reason TEXT,
                 created_at TEXT DEFAULT (datetime('now','localtime'))
             );
-        ").unwrap();
+        ",
+        )
+        .unwrap();
         conn
     }
 
@@ -249,18 +254,30 @@ mod tests {
             unit: "UNIDAD".to_string(),
         }];
 
-        let purchase_id = create_purchase(&conn, 1, Some(1), "Ferretería El Tornillo", "FACT-123", &items).unwrap();
+        let purchase_id = create_purchase(
+            &conn,
+            1,
+            Some(1),
+            "Ferretería El Tornillo",
+            "FACT-123",
+            &items,
+        )
+        .unwrap();
         assert_eq!(purchase_id, 1);
 
         // Verify inventory count increased
-        let stock: f64 = conn.query_row("SELECT stock FROM products WHERE id = 1", [], |row| row.get(0)).unwrap();
+        let stock: f64 = conn
+            .query_row("SELECT stock FROM products WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
         assert_eq!(stock, 100.0);
     }
 
     #[test]
     fn test_create_purchase_invalid_inputs() {
         let conn = setup_db();
-        
+
         // Zero quantity
         let items_zero = vec![PurchaseItemRequest {
             product_id: None,

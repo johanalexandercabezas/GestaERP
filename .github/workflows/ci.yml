@@ -4,6 +4,12 @@
 # Ejecuta en cada push y pull request a main/develop.
 # Incluye: lint, tests unitarios, build de verificación,
 # auditoría de dependencias y análisis de seguridad.
+#
+# AUD-014: Pendientes:
+#   - Activar ESLint job cuando se instale eslint (AUD-007)
+#   - Activar Tauri build smoke test en CI (pesado, ~15 min)
+#   - security-audit debe ser bloqueante cuando AUD-004 esté resuelto
+#   - Añadir Prettier/format check para frontend
 # ============================================================
 
 name: GestaERP CI/CD
@@ -49,6 +55,9 @@ jobs:
 
       - name: TypeScript type check
         run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npx eslint src/ --ext .ts,.tsx --max-warnings 0
 
   # ============================================================
   # 2. Tests Unitarios (Frontend)
@@ -154,3 +163,23 @@ jobs:
       - name: Check Rust formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+
+  # ============================================================
+  # 6. Tauri Build Smoke Test (AUD-014 — pendiente de activar)
+  # ============================================================
+  # Activar cuando el build de Tauri sea rápido o se use cache agresiva.
+  # Verifica que el binario compila sin errores.
+  #
+  # tauri-build-check:
+  #   name: "Build: Tauri Smoke Test (Windows)"
+  #   runs-on: windows-latest
+  #   timeout-minutes: 25
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: "22", cache: "npm" }
+  #     - run: npm ci
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: Swatinem/rust-cache@v2
+  #       with: { workspaces: "src-tauri -> target" }
+  #     - run: npm run tauri build -- --debug  # solo verifica compilación

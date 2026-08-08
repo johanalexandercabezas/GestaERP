@@ -1,6 +1,6 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
+use tauri::State;
 
 #[tauri::command]
 pub fn is_setup_complete(state: State<AppState>) -> Result<bool, String> {
@@ -12,7 +12,16 @@ pub fn is_setup_complete(state: State<AppState>) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub fn save_business_info(state: State<AppState>, nombre: String, nit: String, iva: bool, telefono: String, direccion: String, ciudad: String, email: String) -> Result<(), String> {
+pub fn save_business_info(
+    state: State<AppState>,
+    nombre: String,
+    nit: String,
+    iva: bool,
+    telefono: String,
+    direccion: String,
+    ciudad: String,
+    email: String,
+) -> Result<(), String> {
     // Permitir sin sesión solo si el setup aún no está completo (primer arranque);
     // en cualquier otro caso se requiere admin.
     let setup_done = {
@@ -26,7 +35,8 @@ pub fn save_business_info(state: State<AppState>, nombre: String, nit: String, i
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "nombre_negocio", &nombre).map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "nit", &nit).map_err(|e| e.to_string())?;
-    crate::db::set_setting(&conn, "iva_responsable", if iva { "1" } else { "0" }).map_err(|e| e.to_string())?;
+    crate::db::set_setting(&conn, "iva_responsable", if iva { "1" } else { "0" })
+        .map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "telefono", &telefono).map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "direccion", &direccion).map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "ciudad", &ciudad).map_err(|e| e.to_string())?;
@@ -39,8 +49,16 @@ pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>
     // Las siguientes claves son públicas (se leen antes del login para mostrar
     // en la UI de login/setup). Cualquier otra clave requiere autenticación.
     const PUBLIC_KEYS: &[&str] = &[
-        "nombre_negocio", "nit", "telefono", "direccion", "ciudad",
-        "email", "logo_path", "iva_responsable", "department", "license_plan",
+        "nombre_negocio",
+        "nit",
+        "telefono",
+        "direccion",
+        "ciudad",
+        "email",
+        "logo_path",
+        "iva_responsable",
+        "department",
+        "license_plan",
     ];
     if !PUBLIC_KEYS.iter().any(|p| key == *p) {
         auth_guard::require_auth(&state)?;
@@ -84,8 +102,7 @@ pub fn upload_business_logo(state: State<AppState>, logo_bytes: Vec<u8>) -> Resu
     let resized = img.resize(200, 200, FilterType::Lanczos3);
 
     // Crear directorio de assets
-    let data_dir = dirs::data_dir()
-        .ok_or("No se encontró el directorio de datos del sistema")?;
+    let data_dir = dirs::data_dir().ok_or("No se encontró el directorio de datos del sistema")?;
     let assets_dir = data_dir.join("GestaERP").join("assets");
     std::fs::create_dir_all(&assets_dir)
         .map_err(|e| format!("Error al crear carpeta de assets: {}", e))?;
@@ -93,7 +110,8 @@ pub fn upload_business_logo(state: State<AppState>, logo_bytes: Vec<u8>) -> Resu
     // Guardar como PNG optimizado
     let logo_path = assets_dir.join("logo.png");
     let mut buffer = Cursor::new(Vec::new());
-    resized.write_to(&mut buffer, ImageFormat::Png)
+    resized
+        .write_to(&mut buffer, ImageFormat::Png)
         .map_err(|e| format!("Error al codificar imagen PNG: {}", e))?;
 
     // Optimizar: re-cargar y guardar con compresión si es muy grande
@@ -103,7 +121,8 @@ pub fn upload_business_logo(state: State<AppState>, logo_bytes: Vec<u8>) -> Resu
         let img_optimized = image::load_from_memory(&final_bytes)
             .map_err(|e| format!("Error al recargar: {}", e))?;
         let mut opt_buffer = Cursor::new(Vec::new());
-        img_optimized.write_to(&mut opt_buffer, ImageFormat::Png)
+        img_optimized
+            .write_to(&mut opt_buffer, ImageFormat::Png)
             .map_err(|e| format!("Error al codificar PNG optimizado: {}", e))?;
         std::fs::write(&logo_path, opt_buffer.into_inner())
             .map_err(|e| format!("Error al guardar logo optimizado: {}", e))?;
@@ -128,25 +147,34 @@ pub fn get_business_logo(state: State<AppState>) -> Result<Option<String>, Strin
     let logo_filename = crate::db::get_setting(&conn, "logo_path");
 
     if let Some(filename) = logo_filename {
-        let data_dir = dirs::data_dir()
-            .ok_or("No se encontró el directorio de datos del sistema")?;
-        let logo_path = data_dir.join("GestaERP").join("assets").join(&filename);
+        // AUD-011 FIX: Validar que el nombre de archivo no contenga separadores de path
+        // ni secuencias de escape (path traversal). Solo se permiten nombres planos.
+        let basename = std::path::Path::new(&filename)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| {
+                !n.is_empty() && !n.contains('/') && !n.contains('\\') && !n.contains("..")
+            });
 
-        if logo_path.exists() {
-            let bytes = std::fs::read(&logo_path)
-                .map_err(|e| format!("Error al leer logo: {}", e))?;
-            let base64 = base64_encode(&bytes);
-            return Ok(Some(base64));
+        if let Some(safe_name) = basename {
+            let data_dir =
+                dirs::data_dir().ok_or("No se encontró el directorio de datos del sistema")?;
+            let logo_path = data_dir.join("GestaERP").join("assets").join(safe_name);
+
+            if logo_path.exists() {
+                let bytes =
+                    std::fs::read(&logo_path).map_err(|e| format!("Error al leer logo: {}", e))?;
+                let base64 = base64_encode(&bytes);
+                return Ok(Some(base64));
+            }
         }
     }
-    
+
     // Fallback: buscar logo.png directamente
-    let data_dir = dirs::data_dir()
-        .ok_or("No se encontró el directorio de datos del sistema")?;
+    let data_dir = dirs::data_dir().ok_or("No se encontró el directorio de datos del sistema")?;
     let logo_path = data_dir.join("GestaERP").join("assets").join("logo.png");
     if logo_path.exists() {
-        let bytes = std::fs::read(&logo_path)
-            .map_err(|e| format!("Error al leer logo: {}", e))?;
+        let bytes = std::fs::read(&logo_path).map_err(|e| format!("Error al leer logo: {}", e))?;
         let base64 = base64_encode(&bytes);
         return Ok(Some(base64));
     }
@@ -178,12 +206,19 @@ pub fn reset_database(state: State<AppState>) -> Result<String, String> {
         DELETE FROM suppliers;
         DELETE FROM employees;
         DELETE FROM settings WHERE key != 'nombre_negocio' AND key != 'nit' AND key != 'iva_responsable' AND key != 'telefono' AND key != 'direccion' AND key != 'ciudad' AND key != 'email' AND key != 'logo_path' AND key != 'department' AND key != 'license_plan';
-        DELETE FROM schema_migrations;
+        -- AUD-010 FIX: Conserva el primer admin (por min id) y elimina el resto de usuarios
+        -- en lugar de hardcodear username='admin'
+        DELETE FROM users WHERE role != 'admin' OR id NOT IN (SELECT MIN(id) FROM users WHERE role = 'admin');
+        -- AUD-010 FIX: Repoblar schema_migrations con la versión actual para evitar
+        -- estado inconsistente. La app reiniciará y re-ejecutará migraciones.
+        -- NOTA: las tablas DROPeadas se recrearán al reiniciar la app en init_db().
         DELETE FROM licenses;
-        DELETE FROM users WHERE username != 'admin';
         VACUUM;
     ").map_err(|e| format!("Error al limpiar base de datos: {}", e))?;
-    Ok("Base de datos limpiada exitosamente. Se han eliminado todas las ventas, compras, gastos y movimientos. Los servicios, productos y servicios creados permanecen.".to_string())
+    // Re-inicializar schema_migrations con la versión actual (7)
+    conn.execute("INSERT INTO schema_migrations (version) VALUES (7)", [])
+        .ok(); // No fatal si falla (la BD ya está limpia y el reinicio lo arreglará)
+    Ok("Base de datos limpiada exitosamente. Se han eliminado todas las ventas, compras, gastos y movimientos. Se conserva el primer usuario administrador y la configuración del negocio.".to_string())
 }
 
 #[tauri::command]

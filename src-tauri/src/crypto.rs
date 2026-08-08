@@ -13,7 +13,7 @@
 //! El resultado es un hex string de 64 caracteres.
 
 use hmac::{Hmac, Mac};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// El pepper se obtiene ahora de la configuración centralizada (crate::config)
 /// permitiendo sobreescribirlo mediante la variable de entorno GESTAERP_DB_PEPPER.
@@ -45,8 +45,7 @@ pub fn derive_db_key() -> String {
 
     // HMAC con pepper para derivar la clave final
     let pepper = crate::config::get_db_pepper();
-    let mut mac = Hmac::<Sha256>::new_from_slice(pepper.as_bytes())
-        .expect("HMAC key length error");
+    let mut mac = Hmac::<Sha256>::new_from_slice(pepper.as_bytes()).expect("HMAC key length error");
     mac.update(&identity_hash);
     let result = mac.finalize().into_bytes();
 
@@ -68,7 +67,10 @@ mod tests {
     #[test]
     fn test_derive_db_key_is_hex() {
         let key = derive_db_key();
-        assert!(key.chars().all(|c| c.is_ascii_hexdigit()), "Key must be hex");
+        assert!(
+            key.chars().all(|c| c.is_ascii_hexdigit()),
+            "Key must be hex"
+        );
     }
 
     #[test]

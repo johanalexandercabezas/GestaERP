@@ -8,6 +8,7 @@ import Skeleton from "../components/ui/Skeleton";
 import NumericInput from "../components/ui/NumericInput";
 import { formatCOP } from "../utils/formatCurrency";
 import { Package, Search, Edit3, EyeOff, ToggleRight } from "lucide-react";
+import { ROLES } from "../types/auth";
 
 interface Product {
   id: number;
@@ -55,7 +56,7 @@ export default function ProductsView({ role }: ProductsViewProps) {
   const [maxStock, setMaxStock] = useState("0");
   const [ivaPercent, setIvaPercent] = useState("0");
 
-  const isAdmin = role === "admin";
+  const isAdmin = role === ROLES.ADMIN;
 
   const loadProducts = async () => {
     try {

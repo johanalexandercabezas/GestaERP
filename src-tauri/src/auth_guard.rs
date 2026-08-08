@@ -12,8 +12,8 @@
 //! o `state.db.lock()` dentro del mismo comando (locks secuenciales, no
 //! anidados).
 
-use tauri::State;
 use crate::AppState;
+use tauri::State;
 
 /// Verifica que exista un usuario autenticado en la sesión actual.
 /// Úsalo en comandos accesibles para cualquier usuario logueado (lectura general).

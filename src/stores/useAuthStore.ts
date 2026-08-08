@@ -89,10 +89,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   createAdminUser: async (username: string, password: string, fullName: string) => {
-    const user = await invoke<User>('create_admin_user', {
+    const user = await invoke<User>('create_bootstrap_admin', {
       username,
       password,
-      fullName,
+      full_name: fullName,
     });
     return user;
   },
@@ -101,7 +101,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     return await invoke<boolean>('has_any_user');
   },
 
+  // TODO AUD-005: changePassword requiere verificación de contraseña actual.
+  // El backend expone update_user pero sin validación de contraseña actual.
+  // Pendiente implementar comando change_password con verificación de credenciales actuales.
   changePassword: async (input: ChangePasswordInput) => {
-    await invoke('change_password', { input });
+    await invoke('update_user', {
+      id: input.user_id,
+      fullName: '',
+      role: '',
+      active: true,
+      newPassword: input.new_password,
+    });
   },
 }));

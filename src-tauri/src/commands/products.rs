@@ -1,13 +1,25 @@
-use tauri::State;
-use crate::AppState;
-use crate::auth_guard;
-use crate::utils::parse_f64;
-use crate::products;
 use crate::audit;
+use crate::auth_guard;
+use crate::products;
+use crate::utils::parse_f64;
+use crate::AppState;
 use rusqlite::Connection;
+use tauri::State;
 
 #[tauri::command]
-pub fn create_product(state: State<AppState>, sku: String, name: String, description: Option<String>, price: String, cost: String, stock: String, min_stock: String, max_stock: String, iva_percent: String, unit: String) -> Result<i64, String> {
+pub fn create_product(
+    state: State<AppState>,
+    sku: String,
+    name: String,
+    description: Option<String>,
+    price: String,
+    cost: String,
+    stock: String,
+    min_stock: String,
+    max_stock: String,
+    iva_percent: String,
+    unit: String,
+) -> Result<i64, String> {
     // P1-01 FIX: Requiere rol admin para crear productos (antes solo sesión)
     auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
@@ -18,15 +30,40 @@ pub fn create_product(state: State<AppState>, sku: String, name: String, descrip
     let max_stock = parse_f64(&max_stock, "stock máx.")?;
     let iva_percent = parse_f64(&iva_percent, "IVA %")?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let p = products::Product { id: 0, sku, name: name.clone(), description, price, cost, stock, min_stock, max_stock, iva_percent, active: true, unit };
+    let p = products::Product {
+        id: 0,
+        sku,
+        name: name.clone(),
+        description,
+        price,
+        cost,
+        stock,
+        min_stock,
+        max_stock,
+        iva_percent,
+        active: true,
+        unit,
+    };
     match products::create_product(&conn, &p) {
         Ok(id) => {
-            audit::log_action(&conn, user.id, &user.full_name, "products", id, "CREATE", None, Some(&audit::to_json_string(&p)));
+            audit::log_action(
+                &conn,
+                user.id,
+                &user.full_name,
+                "products",
+                id,
+                "CREATE",
+                None,
+                Some(&audit::to_json_string(&p)),
+            );
             Ok(id)
         }
         Err(e) => {
-            if let rusqlite::Error::InvalidParameterName(msg) = &e { Err(msg.clone()) }
-            else { Err(format!("Error: {}", e)) }
+            if let rusqlite::Error::InvalidParameterName(msg) = &e {
+                Err(msg.clone())
+            } else {
+                Err(format!("Error: {}", e))
+            }
         }
     }
 }
@@ -39,7 +76,21 @@ pub fn list_products(state: State<AppState>) -> Result<Vec<products::Product>, S
 }
 
 #[tauri::command]
-pub fn update_product(state: State<AppState>, id: i64, sku: String, name: String, description: Option<String>, price: String, cost: String, stock: String, min_stock: String, max_stock: String, iva_percent: String, active: bool, unit: String) -> Result<(), String> {
+pub fn update_product(
+    state: State<AppState>,
+    id: i64,
+    sku: String,
+    name: String,
+    description: Option<String>,
+    price: String,
+    cost: String,
+    stock: String,
+    min_stock: String,
+    max_stock: String,
+    iva_percent: String,
+    active: bool,
+    unit: String,
+) -> Result<(), String> {
     // P1-01 FIX: Requiere rol admin para modificar productos
     auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
@@ -50,15 +101,40 @@ pub fn update_product(state: State<AppState>, id: i64, sku: String, name: String
     let max_stock = parse_f64(&max_stock, "stock máx.")?;
     let iva_percent = parse_f64(&iva_percent, "IVA %")?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let p = products::Product { id, sku, name, description, price, cost, stock, min_stock, max_stock, iva_percent, active, unit };
+    let p = products::Product {
+        id,
+        sku,
+        name,
+        description,
+        price,
+        cost,
+        stock,
+        min_stock,
+        max_stock,
+        iva_percent,
+        active,
+        unit,
+    };
     match products::update_product(&conn, &p) {
         Ok(_) => {
-            audit::log_action(&conn, user.id, &user.full_name, "products", id, "UPDATE", None, Some(&audit::to_json_string(&p)));
+            audit::log_action(
+                &conn,
+                user.id,
+                &user.full_name,
+                "products",
+                id,
+                "UPDATE",
+                None,
+                Some(&audit::to_json_string(&p)),
+            );
             Ok(())
         }
         Err(e) => {
-            if let rusqlite::Error::InvalidParameterName(msg) = &e { Err(msg.clone()) }
-            else { Err(format!("Error: {}", e)) }
+            if let rusqlite::Error::InvalidParameterName(msg) = &e {
+                Err(msg.clone())
+            } else {
+                Err(format!("Error: {}", e))
+            }
         }
     }
 }
@@ -69,22 +145,35 @@ pub fn delete_product(state: State<AppState>, id: i64) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
     let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    products::delete_product(&conn, id).map_err(|e| {
-        format!("Error: {}", e)
-    })?;
-    audit::log_action(&conn, user.id, &user.full_name, "products", id, "DELETE", None, None);
+    products::delete_product(&conn, id).map_err(|e| format!("Error: {}", e))?;
+    audit::log_action(
+        &conn,
+        user.id,
+        &user.full_name,
+        "products",
+        id,
+        "DELETE",
+        None,
+        None,
+    );
     Ok(())
 }
 
 #[tauri::command]
-pub fn search_products(state: State<AppState>, query: String) -> Result<Vec<products::Product>, String> {
+pub fn search_products(
+    state: State<AppState>,
+    query: String,
+) -> Result<Vec<products::Product>, String> {
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     products::search_products(&conn, &query).map_err(|e| format!("Error: {}", e))
 }
 
 #[tauri::command]
-pub fn check_duplicates(state: State<AppState>, name: String) -> Result<Vec<products::DuplicateSuggestion>, String> {
+pub fn check_duplicates(
+    state: State<AppState>,
+    name: String,
+) -> Result<Vec<products::DuplicateSuggestion>, String> {
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     products::find_similar_products(&conn, &name, 3).map_err(|e| format!("Error: {}", e))
@@ -105,24 +194,54 @@ pub fn list_active_services(state: State<AppState>) -> Result<Vec<products::Prod
 }
 
 #[tauri::command]
-pub fn update_service(state: State<AppState>, id: i64, sku: String, name: String, description: Option<String>, price: String, iva_percent: String, active: bool) -> Result<(), String> {
+pub fn update_service(
+    state: State<AppState>,
+    id: i64,
+    sku: String,
+    name: String,
+    description: Option<String>,
+    price: String,
+    iva_percent: String,
+    active: bool,
+) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
     let price = parse_f64(&price, "precio")?;
     let iva_percent = parse_f64(&iva_percent, "IVA %")?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    services_update(&conn, id, sku, name, description, price, iva_percent, active).map_err(|e| format!("Error: {}", e))
+    services_update(
+        &conn,
+        id,
+        sku,
+        name,
+        description,
+        price,
+        iva_percent,
+        active,
+    )
+    .map_err(|e| format!("Error: {}", e))
 }
 
 #[tauri::command]
-pub fn find_product_by_sku(state: State<AppState>, sku: String) -> Result<products::Product, String> {
+pub fn find_product_by_sku(
+    state: State<AppState>,
+    sku: String,
+) -> Result<products::Product, String> {
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare("SELECT id, sku, name, description, price, cost, stock, min_stock, max_stock, iva_percent, active, COALESCE(unit, 'UNIDAD') FROM products WHERE sku = ?1 AND active = 1").map_err(|e| e.to_string())?;
     stmt.query_row([&sku], |row| {
         Ok(products::Product {
-            id: row.get(0)?, sku: row.get(1)?, name: row.get(2)?, description: row.get(3)?, price: row.get(4)?,
-            cost: row.get(5)?, stock: row.get(6)?, min_stock: row.get(7)?, max_stock: row.get(8)?,
-            iva_percent: row.get(9)?, active: row.get::<_, i64>(10)? != 0,
+            id: row.get(0)?,
+            sku: row.get(1)?,
+            name: row.get(2)?,
+            description: row.get(3)?,
+            price: row.get(4)?,
+            cost: row.get(5)?,
+            stock: row.get(6)?,
+            min_stock: row.get(7)?,
+            max_stock: row.get(8)?,
+            iva_percent: row.get(9)?,
+            active: row.get::<_, i64>(10)? != 0,
             unit: row.get(11)?,
         })
     })
@@ -138,9 +257,17 @@ fn services_list(conn: &Connection) -> Result<Vec<products::Product>, rusqlite::
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(products::Product {
-            id: row.get(0)?, sku: row.get(1)?, name: row.get(2)?, description: row.get(3)?,
-            price: row.get(4)?, cost: row.get(5)?, stock: row.get(6)?, min_stock: row.get(7)?,
-            max_stock: row.get(8)?, iva_percent: row.get(9)?, active: row.get::<_, i64>(10)? != 0,
+            id: row.get(0)?,
+            sku: row.get(1)?,
+            name: row.get(2)?,
+            description: row.get(3)?,
+            price: row.get(4)?,
+            cost: row.get(5)?,
+            stock: row.get(6)?,
+            min_stock: row.get(7)?,
+            max_stock: row.get(8)?,
+            iva_percent: row.get(9)?,
+            active: row.get::<_, i64>(10)? != 0,
             unit: row.get(11)?,
         })
     })?;
@@ -153,16 +280,33 @@ fn services_list_active(conn: &Connection) -> Result<Vec<products::Product>, rus
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(products::Product {
-            id: row.get(0)?, sku: row.get(1)?, name: row.get(2)?, description: row.get(3)?,
-            price: row.get(4)?, cost: row.get(5)?, stock: row.get(6)?, min_stock: row.get(7)?,
-            max_stock: row.get(8)?, iva_percent: row.get(9)?, active: row.get::<_, i64>(10)? != 0,
+            id: row.get(0)?,
+            sku: row.get(1)?,
+            name: row.get(2)?,
+            description: row.get(3)?,
+            price: row.get(4)?,
+            cost: row.get(5)?,
+            stock: row.get(6)?,
+            min_stock: row.get(7)?,
+            max_stock: row.get(8)?,
+            iva_percent: row.get(9)?,
+            active: row.get::<_, i64>(10)? != 0,
             unit: row.get(11)?,
         })
     })?;
     rows.collect()
 }
 
-fn services_update(conn: &Connection, id: i64, sku: String, name: String, description: Option<String>, price: f64, iva_percent: f64, active: bool) -> Result<(), rusqlite::Error> {
+fn services_update(
+    conn: &Connection,
+    id: i64,
+    sku: String,
+    name: String,
+    description: Option<String>,
+    price: f64,
+    iva_percent: f64,
+    active: bool,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE products SET sku=?1, name=?2, description=?3, price=?4, iva_percent=?5, active=?6 WHERE id=?7 AND unit='SERVICIO'",
         rusqlite::params![sku, name, description, price, iva_percent, active as i64, id],

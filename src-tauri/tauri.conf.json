@@ -22,7 +22,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REEMPLAZAR_CON_CLAVE_PUBLICA_TAURI",
+      "pubkey": "REEMPLAZAR_CON_CLAVE_PUBLICA_TAURI -- AUD-012: Generar con 'cargo tauri signer generate -w ~/.tauri/myapp.key' y poner la clave pública aquí",
       "endpoints": [
         "https://github.com/GestaSoftTech/GestaERP/releases/latest/download/latest.json"
       ],

@@ -24,12 +24,19 @@ pub fn create_table(conn: &Connection) -> Result<()> {
             completed        INTEGER NOT NULL DEFAULT 0,
             notification_date TEXT,
             created_at       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-        );"
+        );",
     )?;
     Ok(())
 }
 
-pub fn create_note(conn: &Connection, date: &str, title: &str, description: &str, priority: &str, notification_date: Option<&str>) -> Result<i64> {
+pub fn create_note(
+    conn: &Connection,
+    date: &str,
+    title: &str,
+    description: &str,
+    priority: &str,
+    notification_date: Option<&str>,
+) -> Result<i64> {
     conn.execute(
         "INSERT INTO calendar_notes (date, title, description, priority, notification_date) VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![date, title, description, priority, notification_date],
@@ -56,7 +63,15 @@ pub fn list_notes(conn: &Connection) -> Result<Vec<CalendarNote>> {
     rows.collect()
 }
 
-pub fn update_note(conn: &Connection, id: i64, title: &str, description: &str, priority: &str, completed: bool, notification_date: Option<&str>) -> Result<()> {
+pub fn update_note(
+    conn: &Connection,
+    id: i64,
+    title: &str,
+    description: &str,
+    priority: &str,
+    completed: bool,
+    notification_date: Option<&str>,
+) -> Result<()> {
     conn.execute(
         "UPDATE calendar_notes SET title = ?1, description = ?2, priority = ?3, completed = ?4, notification_date = ?5 WHERE id = ?6",
         rusqlite::params![title, description, priority, completed as i64, notification_date, id],
@@ -76,7 +91,7 @@ pub fn get_today_notifications(conn: &Connection) -> Result<Vec<CalendarNote>> {
          FROM calendar_notes 
          WHERE completed = 0 AND notification_date IS NOT NULL 
          AND date(notification_date) = date('now', 'localtime')
-         ORDER BY notification_date"
+         ORDER BY notification_date",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(CalendarNote {

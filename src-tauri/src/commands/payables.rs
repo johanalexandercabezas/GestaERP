@@ -1,7 +1,7 @@
-use tauri::State;
-use crate::AppState;
 use crate::auth_guard;
+use crate::AppState;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PayableRow {
@@ -102,26 +102,29 @@ pub fn list_payables(
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-        Ok(PayableRow {
-            id: row.get(0)?,
-            supplier_id: row.get(1)?,
-            supplier_name: row.get(2)?,
-            invoice_number: row.get(3)?,
-            invoice_date: row.get(4)?,
-            due_date: row.get(5)?,
-            total_amount: row.get(6)?,
-            paid_amount: row.get(7)?,
-            balance: row.get(8)?,
-            status: row.get(9)?,
-            observations: row.get(10)?,
-            created_by: row.get(11)?,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(params), |row| {
+            Ok(PayableRow {
+                id: row.get(0)?,
+                supplier_id: row.get(1)?,
+                supplier_name: row.get(2)?,
+                invoice_number: row.get(3)?,
+                invoice_date: row.get(4)?,
+                due_date: row.get(5)?,
+                total_amount: row.get(6)?,
+                paid_amount: row.get(7)?,
+                balance: row.get(8)?,
+                status: row.get(9)?,
+                observations: row.get(10)?,
+                created_by: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -175,17 +178,21 @@ pub fn register_payable_payment(
     ).map_err(|e| e.to_string())?;
 
     // Actualizar saldo
-    let current_paid: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM payable_payments WHERE payable_id = ?1",
-        [payable_id],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let current_paid: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM payable_payments WHERE payable_id = ?1",
+            [payable_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
-    let total: f64 = conn.query_row(
-        "SELECT total_amount FROM payables WHERE id = ?1",
-        [payable_id],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total: f64 = conn
+        .query_row(
+            "SELECT total_amount FROM payables WHERE id = ?1",
+            [payable_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     let new_status = if current_paid >= total {
         "Pagada"
@@ -204,7 +211,10 @@ pub fn register_payable_payment(
 }
 
 #[tauri::command]
-pub fn list_payable_payments(state: State<AppState>, payable_id: i64) -> Result<Vec<PayablePaymentRow>, String> {
+pub fn list_payable_payments(
+    state: State<AppState>,
+    payable_id: i64,
+) -> Result<Vec<PayablePaymentRow>, String> {
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -213,20 +223,23 @@ pub fn list_payable_payments(state: State<AppState>, payable_id: i64) -> Result<
          FROM payable_payments WHERE payable_id = ?1 ORDER BY payment_date DESC"
     ).map_err(|e| e.to_string())?;
 
-    let rows = stmt.query_map([payable_id], |row| {
-        Ok(PayablePaymentRow {
-            id: row.get(0)?,
-            payable_id: row.get(1)?,
-            payment_date: row.get(2)?,
-            amount: row.get(3)?,
-            payment_method: row.get(4)?,
-            reference: row.get(5)?,
-            observations: row.get(6)?,
-            created_by: row.get(7)?,
+    let rows = stmt
+        .query_map([payable_id], |row| {
+            Ok(PayablePaymentRow {
+                id: row.get(0)?,
+                payable_id: row.get(1)?,
+                payment_date: row.get(2)?,
+                amount: row.get(3)?,
+                payment_method: row.get(4)?,
+                reference: row.get(5)?,
+                observations: row.get(6)?,
+                created_by: row.get(7)?,
+            })
         })
-    }).map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -234,23 +247,29 @@ pub fn get_payables_summary(state: State<AppState>) -> Result<PayablesSummary, S
     auth_guard::require_auth(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    let total_pending: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(balance), 0) FROM payables WHERE status = 'Pendiente'",
-        [],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total_pending: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(balance), 0) FROM payables WHERE status = 'Pendiente'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
-    let total_partial: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(balance), 0) FROM payables WHERE status = 'Parcial'",
-        [],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total_partial: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(balance), 0) FROM payables WHERE status = 'Parcial'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
-    let total_paid: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(paid_amount), 0) FROM payables WHERE status = 'Pagada'",
-        [],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total_paid: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(paid_amount), 0) FROM payables WHERE status = 'Pagada'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     let total_overdue: f64 = conn.query_row(
         "SELECT COALESCE(SUM(balance), 0) FROM payables WHERE status != 'Pagada' AND due_date < date('now','localtime')",

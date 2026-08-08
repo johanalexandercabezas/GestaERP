@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use chrono::Local;
 use serde::Serialize;
+use std::fs;
+use std::path::Path;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct BackupInfo {
@@ -47,7 +47,10 @@ fn validate_backup_filename(filename: &str) -> Result<(), String> {
         return Err("Nombre de archivo no permitido".to_string());
     }
     // Rechazar caracteres peligrosos de Windows
-    if filename.chars().any(|c| matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|')) {
+    if filename
+        .chars()
+        .any(|c| matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+    {
         return Err("Nombre de archivo no permitido".to_string());
     }
     Ok(())
@@ -64,7 +67,7 @@ pub fn create_backup() -> Result<BackupInfo, String> {
     eprintln!("[BACKUP] Iniciando creación de backup...");
     let db_path = db_path();
     eprintln!("[BACKUP] Ruta de BD: {}", db_path);
-    
+
     let db = Path::new(&db_path);
     if !db.exists() {
         return Err(format!("La base de datos no existe en: {}", db_path));
@@ -110,8 +113,8 @@ pub fn list_backups() -> Result<Vec<BackupInfo>, String> {
     }
 
     let mut backups = Vec::new();
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("No se pudo leer la carpeta de backups: {}", e))?;
+    let entries =
+        fs::read_dir(dir).map_err(|e| format!("No se pudo leer la carpeta de backups: {}", e))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Error al leer entrada: {}", e))?;
@@ -151,12 +154,11 @@ pub fn restore_backup(filename: &str) -> Result<(), String> {
     }
 
     let db_path = db_path();
-    fs::copy(&src, Path::new(&db_path))
-        .map_err(|e| {
-            eprintln!("[BACKUP] Error al restaurar: {}", e);
-            format!("Error al restaurar el backup: {}", e)
-        })?;
-    
+    fs::copy(&src, Path::new(&db_path)).map_err(|e| {
+        eprintln!("[BACKUP] Error al restaurar: {}", e);
+        format!("Error al restaurar el backup: {}", e)
+    })?;
+
     eprintln!("[BACKUP] Backup restaurado exitosamente. Reinicia la aplicación.");
     Ok(())
 }
@@ -177,18 +179,23 @@ pub fn delete_backup(filename: &str) -> Result<(), String> {
 /// Exporta un backup al Escritorio (o ruta especificada) para migración a otro PC
 pub fn export_backup_to_path(filename: &str, dest_path: &str) -> Result<BackupInfo, String> {
     validate_backup_filename(filename)?;
-    eprintln!("[BACKUP] Exportando backup {} hacia {}", filename, dest_path);
+    eprintln!(
+        "[BACKUP] Exportando backup {} hacia {}",
+        filename, dest_path
+    );
     let backups = list_backups()?;
-    let found = backups.iter().find(|b| b.filename == filename)
+    let found = backups
+        .iter()
+        .find(|b| b.filename == filename)
         .ok_or_else(|| "Backup no encontrado".to_string())?;
-    
+
     let dir_str = backups_dir();
     let dir = Path::new(&dir_str);
     let src = dir.join(filename);
     let dest = Path::new(dest_path).join(filename);
-    
+
     fs::copy(&src, &dest).map_err(|e| format!("Error al exportar backup: {}", e))?;
-    
+
     Ok(BackupInfo {
         filename: found.filename.clone(),
         created: found.created.clone(),
@@ -203,21 +210,22 @@ pub fn import_backup_from_path(source_path: &str) -> Result<BackupInfo, String> 
     if !src.exists() {
         return Err("El archivo especificado no existe.".to_string());
     }
-    
-    let filename = src.file_name()
+
+    let filename = src
+        .file_name()
         .ok_or_else(|| "Nombre de archivo inválido".to_string())?
         .to_string_lossy()
         .to_string();
-    
+
     let dir_str = backups_dir();
     let dir = Path::new(&dir_str);
     fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear carpeta de backups: {}", e))?;
     let dest = dir.join(&filename);
-    
+
     fs::copy(src, &dest).map_err(|e| format!("Error al importar backup: {}", e))?;
-    
+
     let metadata = fs::metadata(&dest).map_err(|e| format!("Error al leer metadatos: {}", e))?;
-    
+
     Ok(BackupInfo {
         filename,
         created: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -230,7 +238,7 @@ pub fn open_backups_folder() -> Result<(), String> {
     let dir_str = backups_dir();
     let dir = Path::new(&dir_str);
     fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear carpeta: {}", e))?;
-    
+
     open::that(dir).map_err(|e| format!("No se pudo abrir la carpeta: {}", e))?;
     Ok(())
 }
@@ -255,7 +263,7 @@ mod tests {
     #[test]
     fn test_backup_flow() {
         cleanup();
-        
+
         let db = db_path();
         fs::write(&db, b"DUMMY DATABASE CONTENT").unwrap();
 

@@ -3,6 +3,12 @@
 //! Implementa un limitador simple basado en memoria (HashMap) que
 //! restringe el número de intentos por clave en una ventana de tiempo.
 //!
+//! AUD-009: El estado se pierde al reiniciar la app (en memoria).
+//! Para mitigar fuerza bruta cross-session, se recomienda:
+//! - Persistir intentos fallidos en SQLite (tabla `rate_limit_attempts`)
+//!   con timestamp + clave, y limpiar entradas expiradas periódicamente.
+//! - O usar el mecanismo de bloqueo de cuenta del sistema operativo.
+//!
 //! Para producción multi-servidor, reemplazar por Redis o similar.
 //!
 //! OWASP: A07:2021 Identification and Authentication Failures
@@ -50,11 +56,7 @@ impl RateLimiter {
 
         // Limpiar entradas expiradas periódicamente (cada 1000 checks)
         if entries.len() > 1000 {
-            entries.retain(|_, entry| {
-                entry.blocked_until
-                    .map(|b| now < b)
-                    .unwrap_or(true)
-            });
+            entries.retain(|_, entry| entry.blocked_until.map(|b| now < b).unwrap_or(true));
         }
 
         let entry = entries.entry(key.to_string()).or_insert(RateLimitEntry {

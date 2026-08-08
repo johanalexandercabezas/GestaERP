@@ -123,7 +123,7 @@ El botón "Actualización por Soporte" en Acerca de permite:
 
 - **BD cifrada por máquina**: Clave derivada de hostname+username (SQLCipher)
 - **Licencias HMAC-SHA256**: Claves no falsificables sin el master secret
-- **Master Secret**: `GestaERP_2026_SecureKey_Colombia` (cambiar en producción)
+- **Master Secret**: Configurado mediante `GESTAERP_SECRET_KEY` en `.env` (sin valor por defecto — la app aborta si no se configura)
 - **Autenticación**: Argon2 para contraseñas de usuarios
 - **Autorización**: Backend valida roles, no confía en el frontend
 

@@ -39,7 +39,11 @@ pub fn create_physical_count(conn: &Connection, user_id: i64, notes: &str) -> Re
 }
 
 /// Agrega productos al conteo (todos los activos o seleccionados)
-pub fn add_items_to_count(conn: &Connection, count_id: i64, product_ids: Option<Vec<i64>>) -> Result<()> {
+pub fn add_items_to_count(
+    conn: &Connection,
+    count_id: i64,
+    product_ids: Option<Vec<i64>>,
+) -> Result<()> {
     let products = if let Some(ids) = product_ids {
         // Solo productos específicos
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -63,9 +67,8 @@ pub fn add_items_to_count(conn: &Connection, count_id: i64, product_ids: Option<
         result
     } else {
         // Todos los productos activos
-        let mut stmt = conn.prepare(
-            "SELECT id, name, sku, stock FROM products WHERE active = 1 ORDER BY name",
-        )?;
+        let mut stmt = conn
+            .prepare("SELECT id, name, sku, stock FROM products WHERE active = 1 ORDER BY name")?;
         let rows = stmt.query_map([], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
@@ -189,7 +192,11 @@ pub fn apply_adjustments(conn: &Connection, count_id: i64) -> Result<()> {
         )?;
 
         // Registrar movimiento de inventario
-        let movement_type = if *difference < 0.0 { "ajuste_negativo" } else { "ajuste_positivo" };
+        let movement_type = if *difference < 0.0 {
+            "ajuste_negativo"
+        } else {
+            "ajuste_positivo"
+        };
         conn.execute(
             "INSERT INTO inventory_movements (product_id, movement_type, quantity, reason) VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![product_id, movement_type, difference.abs(), format!("Conteo físico #{}", count_id)],
@@ -240,34 +247,38 @@ pub struct AuditSummary {
 pub fn get_audit_summary(conn: &Connection, count_id: i64) -> Result<AuditSummary> {
     let total: i64 = conn.query_row(
         "SELECT COUNT(*) FROM physical_count_items WHERE count_id = ?1",
-        [count_id], |row| row.get(0),
+        [count_id],
+        |row| row.get(0),
     )?;
-    
+
     let correct: i64 = conn.query_row(
         "SELECT COUNT(*) FROM physical_count_items WHERE count_id = ?1 AND difference = 0",
-        [count_id], |row| row.get(0),
+        [count_id],
+        |row| row.get(0),
     )?;
-    
+
     let deficit_count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM physical_count_items WHERE count_id = ?1 AND difference < 0",
-        [count_id], |row| row.get(0),
+        [count_id],
+        |row| row.get(0),
     )?;
-    
+
     let surplus_count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM physical_count_items WHERE count_id = ?1 AND difference > 0",
-        [count_id], |row| row.get(0),
+        [count_id],
+        |row| row.get(0),
     )?;
-    
+
     let deficit_units: f64 = conn.query_row(
         "SELECT COALESCE(SUM(ABS(difference)), 0) FROM physical_count_items WHERE count_id = ?1 AND difference < 0",
         [count_id], |row| row.get(0),
     )?;
-    
+
     let surplus_units: f64 = conn.query_row(
         "SELECT COALESCE(SUM(difference), 0) FROM physical_count_items WHERE count_id = ?1 AND difference > 0",
         [count_id], |row| row.get(0),
     )?;
-    
+
     let accuracy = if total > 0 {
         (correct as f64 / total as f64) * 100.0
     } else {
@@ -276,7 +287,8 @@ pub fn get_audit_summary(conn: &Connection, count_id: i64) -> Result<AuditSummar
 
     let (status, notes, date) = conn.query_row(
         "SELECT status, notes, created_at FROM physical_counts WHERE id = ?1",
-        [count_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        [count_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
 
     Ok(AuditSummary {
@@ -295,31 +307,43 @@ pub fn get_audit_summary(conn: &Connection, count_id: i64) -> Result<AuditSummar
 }
 
 /// Genera un informe HTML de validación de stock y lo guarda en la carpeta reportes/
-pub fn generate_stock_validation_report(conn: &Connection, count_id: i64, business_name: &str) -> Result<String, String> {
+pub fn generate_stock_validation_report(
+    conn: &Connection,
+    count_id: i64,
+    business_name: &str,
+) -> Result<String, String> {
     use chrono::Local;
-    
+
     let count = get_physical_count(conn, count_id).map_err(|e| e.to_string())?;
     let summary = get_audit_summary(conn, count_id).map_err(|e| e.to_string())?;
-    
+
     let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let file_suffix = Local::now().format("%Y%m%d_%H%M%S").to_string();
-    
+
     // Build items HTML
     let mut items_rows = String::new();
     for item in &count.items {
-        let diff_type = if item.difference == 0.0 { "Correcto" }
-            else if item.difference < 0.0 { "Faltante" }
-            else { "Sobrante" };
-        let row_class = if item.difference == 0.0 { "" }
-            else if item.difference < 0.0 { " style='color:#dc2626;'" }
-            else { " style='color:#16a34a;'" };
-        
+        let diff_type = if item.difference == 0.0 {
+            "Correcto"
+        } else if item.difference < 0.0 {
+            "Faltante"
+        } else {
+            "Sobrante"
+        };
+        let row_class = if item.difference == 0.0 {
+            ""
+        } else if item.difference < 0.0 {
+            " style='color:#dc2626;'"
+        } else {
+            " style='color:#16a34a;'"
+        };
+
         items_rows.push_str(&format!(
             "<tr{}><td>{}</td><td>{}</td><td align='right'>{:.0}</td><td align='right'>{:.0}</td><td align='right'>{:+.0}</td><td>{}</td></tr>\n",
             row_class, item.product_sku, item.product_name, item.theoretical_qty, item.counted_qty, item.difference, diff_type
         ));
     }
-    
+
     let conclusion = if summary.accuracy_percent == 100.0 {
         format!("El inventario físico coincide exactamente con el stock registrado en el sistema. No se detectaron inconsistencias en los {} productos auditados. La precisión del inventario es del 100%.", summary.total_products)
     } else {
@@ -327,7 +351,8 @@ pub fn generate_stock_validation_report(conn: &Connection, count_id: i64, busine
             summary.with_deficit + summary.with_surplus, summary.total_products, summary.with_deficit, summary.with_surplus, summary.accuracy_percent)
     };
 
-    let html = format!(r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><title>Validación de Stock #{}</title>
 <style>
@@ -389,8 +414,12 @@ pub fn generate_stock_validation_report(conn: &Connection, count_id: i64, busine
         Este informe fue generado automáticamente por el módulo de Auditoría de Stock.
     </div>
 </body></html>"#,
-        count_id, business_name, count_id, now,
-        count.count.status, count.count.notes,
+        count_id,
+        business_name,
+        count_id,
+        now,
+        count.count.status,
+        count.count.notes,
         summary.total_products,
         summary.correct_count,
         summary.with_deficit,
@@ -399,15 +428,17 @@ pub fn generate_stock_validation_report(conn: &Connection, count_id: i64, busine
         summary.total_deficit_units,
         summary.total_surplus_units,
         items_rows,
-        conclusion);
-    
+        conclusion
+    );
+
     let data_dir = dirs::data_dir().ok_or("No se encontró el directorio de datos del sistema")?;
     let report_dir = data_dir.join("GestaERP").join("reportes");
-    std::fs::create_dir_all(&report_dir).map_err(|e| format!("Error al crear carpeta de reportes: {}", e))?;
-    
+    std::fs::create_dir_all(&report_dir)
+        .map_err(|e| format!("Error al crear carpeta de reportes: {}", e))?;
+
     let filename = format!("validacion_stock_{}.html", file_suffix);
     let path = report_dir.join(&filename);
     std::fs::write(&path, html).map_err(|e| format!("Error al guardar informe: {}", e))?;
-    
+
     Ok(format!("Informe guardado en {}", path.display()))
 }

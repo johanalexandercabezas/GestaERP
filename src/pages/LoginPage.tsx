@@ -1,3 +1,7 @@
+// ⚠️ AUD-015: Esta página NO está en uso actualmente.
+// El flujo de login real está en `views/LoginView.tsx`, importado directamente
+// por App.tsx. Esta página y su store `useAuthStore` son código legacy.
+// Si se reactiva, verificar que los comandos de useAuthStore estén registrados.
 import { useState } from "react";
 import { useAuthStore } from "../stores/useAuthStore";
 

@@ -1,10 +1,10 @@
-use rusqlite::{Connection, Result};
-use serde::{Deserialize, Serialize};
 use argon2::{
     password_hash::{PasswordHasher, SaltString},
     Argon2,
 };
 use rand::rngs::OsRng;
+use rusqlite::{Connection, Result};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Clone)]
 pub struct UserRecord {
@@ -48,9 +48,8 @@ pub fn create_user(conn: &Connection, req: &CreateUserRequest) -> Result<i64> {
 }
 
 pub fn list_users(conn: &Connection) -> Result<Vec<UserRecord>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, username, full_name, role, active FROM users ORDER BY id",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT id, username, full_name, role, active FROM users ORDER BY id")?;
     let rows = stmt.query_map([], |row| {
         Ok(UserRecord {
             id: row.get(0)?,
@@ -70,11 +69,19 @@ pub fn update_user(conn: &Connection, req: &UpdateUserRequest) -> Result<()> {
             let salt = SaltString::generate(&mut OsRng);
             let password_hash = argon2
                 .hash_password(new_pass.as_bytes(), &salt)
-                .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Error al hashear: {}", e)))?
+                .map_err(|e| {
+                    rusqlite::Error::InvalidParameterName(format!("Error al hashear: {}", e))
+                })?
                 .to_string();
             conn.execute(
                 "UPDATE users SET full_name=?1, role=?2, active=?3, password=?4 WHERE id=?5",
-                rusqlite::params![req.full_name, req.role, req.active as i64, password_hash, req.id],
+                rusqlite::params![
+                    req.full_name,
+                    req.role,
+                    req.active as i64,
+                    password_hash,
+                    req.id
+                ],
             )?;
         } else {
             conn.execute(
@@ -98,11 +105,13 @@ pub fn delete_user(conn: &Connection, id: i64) -> Result<()> {
         [],
         |row| row.get(0),
     )?;
-    let is_admin: bool = conn.query_row(
-        "SELECT role = 'admin' FROM users WHERE id = ?1",
-        [id],
-        |row| row.get(0),
-    ).unwrap_or(false);
+    let is_admin: bool = conn
+        .query_row(
+            "SELECT role = 'admin' FROM users WHERE id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
 
     if is_admin && admin_count <= 1 {
         return Err(rusqlite::Error::InvalidParameterName(
