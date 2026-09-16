@@ -8,6 +8,8 @@ import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Heart
 import type { LicenseInfo } from "../types/auth";
 
 interface Props {
+  onActivated: () => void;
+}
 
 interface ImplementationStatus {
   is_paid: boolean;

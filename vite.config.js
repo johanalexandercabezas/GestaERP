@@ -30,25 +30,17 @@ export default defineConfig({
     cssMinify: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": [
-            "framer-motion",
-            "lucide-react",
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-dropdown-menu",
-            "@radix-ui/react-select",
-            "@radix-ui/react-tabs",
-            "@radix-ui/react-tooltip",
-          ],
-          "vendor-data": [
-            "zustand",
-            "@tanstack/react-table",
-            "@hookform/resolvers",
-            "react-hook-form",
-            "zod",
-            "recharts",
-          ],
+        // FIX AUDITORÍA (P1-Build):
+        // El manualChunks en forma de objeto generaba (1) un chunk vacío
+        // "vendor-react" (React no caía en su chunk asignado en Vite 7) y
+        // (2) un warning "Circular chunk: vendor-data -> vendor-ui".
+        // Como GestaERP es una app de escritorio Tauri (assets servidos desde
+        // disco local, sin caché HTTP que optimizar), la granularidad de estos
+        // vendor-chunks no aporta valor: se colapsan todos los node_modules en
+        // un único chunk "vendor" (donde no pueden existir ciclos), y se
+        // conserva el code-splitting por vistas, que sí reduce el arranque.
+        manualChunks(id) {
+          if (id.includes("node_modules")) return "vendor";
         },
         chunkFileNames: "assets/[name]-[hash].js",
         entryFileNames: "assets/[name]-[hash].js",
