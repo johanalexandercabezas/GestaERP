@@ -96,3 +96,36 @@ no ejecutables localmente. Los "cargo" arriba vienen de CI/anteriores, no de hoy
   ~1.115 archivos (muchos binarios que en clon parcial además se descargan).
 - Nota: TASK_PROGRESS.md figura en .gitignore pero se versiona a propósito
   (documento de progreso); consistencia pendiente de decidir por el dueño.
+
+### Adenda 3 — Entorno de compilación + validación backend (16/09)
+- [x] VS 2022 Build Tools 17.14.41 instalado (winget, workload VCTools
+      --includeRecommended): MSVC 14.44.35207 + Windows SDK 10.0.26100.0.
+      Ruta: C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools.
+- [x] cargo test --all-targets EJECUTADO localmente por primera vez:
+      55 passed / 0 failed (CARGO_EXIT=0) en ~1 min con caché tibia.
+      Corrige el dato histórico: eran 55 tests, no 23.
+- [x] El equipo queda completo para el ciclo de desarrollo:
+      npm test (42/42) + cargo test (55/55) + npm run tauri build (pendiente
+      de primera ejecución; requiere dist/ y firma para el updater).
+- [ ] PR chore/frontend-quickwins -> main (2 commits: quickwins+F0).
+
+### Adenda 4 — npm run tauri build: PRIMERA PRUEBA EXTREMO A EXTREMO OK (16/09)
+- [x] AUD-012 CERRADO: claves de firma del updater generadas
+      (tauri signer generate, sin contraseña para uso local):
+      privada C:\Users\Jcabezas\.tauri\gestaerp_main.key (NUNCA subir a Git;
+      en CI va como secret TAURI_SIGNING_PRIVATE_KEY);
+      pública inyectada en tauri.conf.json (reemplaza placeholder).
+- [x] icons/icon.ico añadido explícitamente a bundle.icon.
+- [x] Instaladores generados (primera compilación release ~20 min):
+      - msi\GestaERP_1.0.1_x64_en-US.msi (9,9 MB, WiX)
+      - nsis\GestaERP_1.0.1_x64-setup.exe (7,0 MB, NSIS)
+- [x] Firmas de updater generadas (.sig minisign) para ambos instaladores.
+- Notas/lecciones:
+  * El bundler ignora TAURI_SIGNING_PRIVATE_KEY_PATH en el paso de firma:
+    usar TAURI_SIGNING_PRIVATE_KEY (contenido o ruta). En CI pasar como secret.
+  * En tareas no interactivas el paso de firma puede quedar colgado esperando
+    la contraseña; para firmar manualmente: npx tauri signer sign -f <key> -p "" <file>
+  * Recompilación con config cambiada: solo el crate principal (vite 5 s +
+    enlazado). Builds subsecuentes serán mucho más rápidos.
+- [ ] Pendiente: agregar TAURI_SIGNING_PRIVATE_KEY como secret en GitHub
+      para release.yml; verificar targets del updater en el release.
