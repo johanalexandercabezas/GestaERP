@@ -80,3 +80,19 @@ no ejecutables localmente. Los "cargo" arriba vienen de CI/anteriores, no de hoy
 - [ ] Pendiente: crear PR de chore/frontend-quickwins -> main.
 - [ ] Nota entorno: este clon parcial (blob:none) hace lentos git status/commit
       y bloquea cambios de rama por target/** versionado. F0 lo arregla.
+
+### Adenda 2 — F0 higiene del repo (16/09)
+- [x] Desversionados del índice: dist/ (5), src-tauri/target/ (690),
+      src-tauri/keygen/target/ (420) -> 1.115 archivos basura (84% del índice).
+      Índice queda en ~218 archivos.
+- [x] .gitignore YA tenía las reglas correctas (dist, src-tauri/target/,
+      keygen/target/): los archivos estaban force-added históricamente.
+      No hizo falta tocarlo.
+- [x] Los archivos siguen en disco local (builds intactos); solo salen de Git.
+- Nota: el historial conserva los blobs (el repo en GitHub no encoge hasta un
+  GC del lado del servidor / reescritura de historial con git-filter-repo,
+  que es destructiva y queda como paso futuro opcional).
+- [x] Efecto esperado: git status/update-index dejan de recorrer y comparar
+  ~1.115 archivos (muchos binarios que en clon parcial además se descargan).
+- Nota: TASK_PROGRESS.md figura en .gitignore pero se versiona a propósito
+  (documento de progreso); consistencia pendiente de decidir por el dueño.
