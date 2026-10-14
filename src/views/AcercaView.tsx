@@ -16,8 +16,8 @@ export default function AcercaView() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".exe";
-    input.onchange = (e: any) => {
-      const file = e.target?.files?.[0];
+    input.onchange = (e: Event) => {
+      const file = (e.target as HTMLInputElement | null)?.files?.[0];
       if (file) {
         setUpdatePath(file.name);
       }
@@ -36,7 +36,7 @@ export default function AcercaView() {
     }
     setUpdateLoading(true);
     try {
-      const result = await invoke<any>("apply_update", { 
+      const result = await invoke<{ message: string }>("apply_update", {
         newExePath: updatePath, 
         newVersion: updateVersion 
       });

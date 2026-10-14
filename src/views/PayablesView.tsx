@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, DollarSign, AlertTriangle, CheckCircle, Clock, XCircle, Eye } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import PremiumModal from "../components/ui/PremiumModal";
 import PremiumButton from "../components/ui/PremiumButton";
 import { showToast } from "../components/ui/PremiumToast";
@@ -39,7 +40,7 @@ interface PayablesSummary {
   total_overdue: number;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   Pendiente: { label: "Pendiente", color: "bg-yellow-100 text-yellow-800", icon: Clock },
   Parcial: { label: "Parcial", color: "bg-blue-100 text-blue-800", icon: AlertTriangle },
   Pagada: { label: "Pagada", color: "bg-green-100 text-green-800", icon: CheckCircle },
@@ -74,6 +75,7 @@ export default function PayablesView() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData relee statusFilter; incluirla re-ejecutaría el efecto en cada render
   }, [statusFilter]);
 
   const loadData = async () => {

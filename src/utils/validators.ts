@@ -5,7 +5,7 @@
  */
 export function validarDigitoVerificadorNIT(nit: string): boolean {
   // Eliminar espacios, guiones y puntos
-  const nitLimpio = nit.replace(/[\s\-\.]/g, "");
+  const nitLimpio = nit.replace(/[\s.-]/g, "");
   
   // El NIT debe tener al menos 2 dígitos (número + dígito verificador)
   if (nitLimpio.length < 2 || !/^\d+$/.test(nitLimpio)) {
@@ -43,7 +43,7 @@ export function validarDigitoVerificadorNIT(nit: string): boolean {
  * Ejemplo: "9013226301" → "901.322.630-1"
  */
 export function formatearNIT(nit: string): string {
-  const nitLimpio = nit.replace(/[\s\-\.]/g, "");
+  const nitLimpio = nit.replace(/[\s.-]/g, "");
   if (nitLimpio.length < 2) return nit;
   
   const digito = nitLimpio.charAt(nitLimpio.length - 1);

@@ -24,6 +24,12 @@ pub struct DuplicateSuggestion {
     pub similarity: f64,
 }
 
+#[derive(Serialize, Debug, Clone)]
+pub struct ProductPage {
+    pub rows: Vec<Product>,
+    pub total: i64,
+}
+
 fn is_sku_duplicate_error(e: &rusqlite::Error) -> bool {
     if let rusqlite::Error::SqliteFailure(
         rusqlite::ffi::Error {
@@ -77,6 +83,59 @@ pub fn list_products(conn: &Connection, include_inactive: bool) -> Result<Vec<Pr
         })
     })?;
     rows.collect()
+}
+
+pub fn list_products_page(
+    conn: &Connection,
+    search: &str,
+    page: u32,
+    page_size: u32,
+) -> Result<ProductPage> {
+    let page = page.max(1);
+    let page_size = page_size.clamp(1, 100);
+    let offset = i64::from(page.saturating_sub(1)) * i64::from(page_size);
+
+    let total = conn.query_row(
+        "SELECT COUNT(*) FROM products
+         WHERE COALESCE(unit, 'UNIDAD') <> 'SERVICIO'
+           AND (?1 = '' OR instr(lower(name), lower(?1)) > 0 OR instr(lower(sku), lower(?1)) > 0)",
+        [search],
+        |row| row.get(0),
+    )?;
+
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, sku, name, description, price, cost, stock, min_stock, max_stock,
+                iva_percent, active, COALESCE(unit, 'UNIDAD')
+         FROM products
+         WHERE COALESCE(unit, 'UNIDAD') <> 'SERVICIO'
+           AND (?1 = '' OR instr(lower(name), lower(?1)) > 0 OR instr(lower(sku), lower(?1)) > 0)
+         ORDER BY name COLLATE NOCASE, id
+         LIMIT ?2 OFFSET ?3",
+    )?;
+    let rows = stmt.query_map(
+        rusqlite::params![search, i64::from(page_size), offset],
+        |row| {
+            Ok(Product {
+                id: row.get(0)?,
+                sku: row.get(1)?,
+                name: row.get(2)?,
+                description: row.get(3)?,
+                price: row.get(4)?,
+                cost: row.get(5)?,
+                stock: row.get(6)?,
+                min_stock: row.get(7)?,
+                max_stock: row.get(8)?,
+                iva_percent: row.get(9)?,
+                active: row.get::<_, i64>(10)? != 0,
+                unit: row.get(11)?,
+            })
+        },
+    )?;
+
+    Ok(ProductPage {
+        rows: rows.collect::<Result<Vec<_>>>()?,
+        total,
+    })
 }
 
 pub fn update_product(conn: &Connection, p: &Product) -> Result<()> {
@@ -190,6 +249,38 @@ pub fn calcular_iva(base: f64, iva_percent: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn test_list_products_page_filters_search_and_pages() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE products (
+                id INTEGER PRIMARY KEY, sku TEXT, name TEXT, description TEXT,
+                price REAL, cost REAL, stock REAL, min_stock REAL, max_stock REAL,
+                iva_percent REAL, active INTEGER, unit TEXT
+            );
+            INSERT INTO products VALUES
+                (1, 'A-1', 'Arroz', NULL, 10, 5, 4, 1, 9, 0, 1, 'UNIDAD'),
+                (2, 'B-1', 'Azúcar', NULL, 20, 8, 3, 1, 9, 0, 1, 'UNIDAD'),
+                (3, 'S-1', 'Servicio', NULL, 30, 0, 0, 0, 0, 0, 1, 'SERVICIO'),
+                (4, 'I-1', 'Inactivo', NULL, 40, 0, 0, 0, 0, 0, 0, 'UNIDAD');",
+        )
+        .unwrap();
+
+        let first_page = list_products_page(&conn, "", 1, 1).unwrap();
+        assert_eq!(first_page.total, 3);
+        assert_eq!(first_page.rows.len(), 1);
+        assert_eq!(first_page.rows[0].name, "Arroz");
+
+        let search_result = list_products_page(&conn, "b-1", 1, 15).unwrap();
+        assert_eq!(search_result.total, 1);
+        assert_eq!(search_result.rows[0].name, "Azúcar");
+
+        let inactive = list_products_page(&conn, "inactivo", 1, 15).unwrap();
+        assert_eq!(inactive.total, 1);
+        assert!(!inactive.rows[0].active);
+    }
 
     #[test]
     fn test_iva_19_porciento() {

@@ -1,5 +1,6 @@
 import { Toaster as SonnerToaster, toast } from "sonner";
 
+// eslint-disable-next-line react-refresh/only-export-components -- showToast se conserva aquí por compatibilidad con sus ~20 importadores
 export function showToast(message: string, type: "success" | "error" | "warning" | "info" = "success") {
   const colors = {
     success: { bg: "#10b981", text: "#ffffff" },

@@ -1,15 +1,15 @@
 //! Configuración centralizada de GestaERP.
 //!
 //! Carga variables de entorno SIN fallbacks a valores por defecto
-//! para GESTAERP_SECRET_KEY y GESTAERP_DB_PEPPER.
+//! para GESTAERP_SECRET_KEY.
 //!
-//! En cualquier entorno, estas variables DEBEN configurarse explícitamente
+//! En cualquier entorno, esta variable DEBE configurarse explícitamente
 //! mediante el archivo `.env` o variables de entorno del sistema.
 //!
 //! # Seguridad
 //!
 //! - No existen valores por defecto para los secretos.
-//! - Si GESTAERP_SECRET_KEY o GESTAERP_DB_PEPPER no están definidas,
+//! - Si GESTAERP_SECRET_KEY no está definida,
 //!   la aplicación aborta inmediatamente con un mensaje claro.
 //! - En producción se valida además que los secretos tengan complejidad suficiente.
 
@@ -27,7 +27,6 @@ const DEFAULT_ENV: &str = "development";
 // ============================================================
 
 static SECRET_KEY: OnceLock<String> = OnceLock::new();
-static DB_PEPPER: OnceLock<String> = OnceLock::new();
 
 /// Longitud mínima requerida para cualquier secreto en producción.
 const MIN_SECRET_LENGTH_PRODUCTION: usize = 20;
@@ -37,13 +36,12 @@ const MIN_SECRET_LENGTH_PRODUCTION: usize = 20;
 fn validate_production_secrets() {
     if get_env() == "production" {
         let sk = get_secret_key();
-        let dp = get_db_pepper();
-        if sk.len() < MIN_SECRET_LENGTH_PRODUCTION || dp.len() < MIN_SECRET_LENGTH_PRODUCTION {
+        if sk.len() < MIN_SECRET_LENGTH_PRODUCTION {
             eprintln!(
                 "======================================================================\n\
                  [SEGURIDAD] Error de configuración en entorno PRODUCCIÓN:\n\
-                 GESTAERP_SECRET_KEY y GESTAERP_DB_PEPPER deben tener al menos\n\
-                 {} caracteres cada una. Verifica .env o las variables de entorno.\n\
+                 GESTAERP_SECRET_KEY debe tener al menos\n\
+                 {} caracteres. Verifica .env o las variables de entorno.\n\
                  ======================================================================",
                 MIN_SECRET_LENGTH_PRODUCTION
             );
@@ -63,7 +61,6 @@ pub fn init() {
 
     // Precargar valores en caché para acceso rápido
     let _ = get_secret_key();
-    let _ = get_db_pepper();
 
     // P0-01 FIX: Rechazar secretos por defecto en producción
     validate_production_secrets();
@@ -108,21 +105,6 @@ pub fn get_secret_key() -> &'static str {
     })
 }
 
-/// Pepper para derivar la clave de base de datos por máquina.
-/// **Obligatorio** en cualquier entorno. Sin él, la app aborta.
-pub fn get_db_pepper() -> &'static str {
-    DB_PEPPER.get_or_init(|| {
-        env::var("GESTAERP_DB_PEPPER").unwrap_or_else(|_| {
-            eprintln!(
-                "[CONFIG] ERROR: GESTAERP_DB_PEPPER no está configurado.\n\
-                     Establece esta variable en .env o en el entorno del sistema.\n\
-                     Ejemplo: GESTAERP_DB_PEPPER=<valor-aleatorio-de-al-menos-20-caracteres>"
-            );
-            std::process::exit(1);
-        })
-    })
-}
-
 /// Nivel de log: trace, debug, info, warn, error
 pub fn get_log_level() -> String {
     env::var("GESTAERP_LOG_LEVEL").unwrap_or_else(|_| DEFAULT_LOG_LEVEL.to_string())
@@ -152,7 +134,6 @@ mod tests {
     /// Helper: limpia y configura variables mínimas para que los getters no aborten.
     fn setup_test_env() {
         env::set_var("GESTAERP_SECRET_KEY", "test_key_de_32_caracteres_minimo!!");
-        env::set_var("GESTAERP_DB_PEPPER", "test_pepper_de_20_chars_ok");
         env::set_var("GESTAERP_ENV", "development");
     }
 
@@ -187,8 +168,6 @@ mod tests {
         // Nota: no podemos probar el camino de exit porque mata el proceso.
         // Verificamos indirectamente que el largo es suficiente.
         let sk = env::var("GESTAERP_SECRET_KEY").unwrap();
-        let dp = env::var("GESTAERP_DB_PEPPER").unwrap();
         assert!(sk.len() >= MIN_SECRET_LENGTH_PRODUCTION);
-        assert!(dp.len() >= MIN_SECRET_LENGTH_PRODUCTION);
     }
 }

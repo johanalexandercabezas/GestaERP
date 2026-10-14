@@ -32,7 +32,8 @@ mod validation;
 use rusqlite::Connection;
 use serde::Deserialize;
 use serde::Serialize;
-use std::sync::Mutex;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Mutex, MutexGuard};
 use tauri::State;
 
 #[derive(Serialize)]
@@ -65,8 +66,73 @@ pub struct Notification {
 }
 
 pub struct AppState {
-    db: Mutex<Connection>,
+    db: DatabaseHandle,
     current_user: Mutex<Option<UserInfo>>,
+}
+
+pub struct DatabaseHandle {
+    connection: Mutex<Option<Connection>>,
+}
+
+pub struct DatabaseGuard<'a>(MutexGuard<'a, Option<Connection>>);
+
+impl DatabaseHandle {
+    fn new(connection: Option<Connection>) -> Self {
+        Self {
+            connection: Mutex::new(connection),
+        }
+    }
+
+    fn lock(&self) -> Result<DatabaseGuard<'_>, String> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|error| format!("Error al bloquear la base de datos: {}", error))?;
+        if guard.is_none() {
+            return Err(
+                "La base de datos está bloqueada; completa la recuperación para continuar."
+                    .to_string(),
+            );
+        }
+        Ok(DatabaseGuard(guard))
+    }
+
+    fn initialize(&self, connection: Connection) -> Result<(), String> {
+        let mut guard = self
+            .connection
+            .lock()
+            .map_err(|error| format!("Error al bloquear la base de datos: {}", error))?;
+        if guard.is_some() {
+            return Err("La base de datos ya está abierta.".to_string());
+        }
+        *guard = Some(connection);
+        Ok(())
+    }
+
+    fn is_initialized(&self) -> Result<bool, String> {
+        self.connection
+            .lock()
+            .map(|connection| connection.is_some())
+            .map_err(|error| format!("Error al consultar la base de datos: {}", error))
+    }
+}
+
+impl Deref for DatabaseGuard<'_> {
+    type Target = Connection;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+            .as_ref()
+            .expect("DatabaseGuard only exists for an initialized database")
+    }
+}
+
+impl DerefMut for DatabaseGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+            .as_mut()
+            .expect("DatabaseGuard only exists for an initialized database")
+    }
 }
 
 #[derive(Deserialize)]
@@ -220,21 +286,35 @@ fn main() {
     #[cfg(not(debug_assertions))]
     log::warn!("[UPDATER] Verifica que tauri.conf.json tiene la clave pública real del updater.");
 
-    let conn = db::init_db().expect("No se pudo inicializar la base de datos");
+    let conn = match db::open_from_keyring() {
+        Ok(connection) => connection,
+        Err(error) => {
+            log::error!(
+                "No se pudo abrir la base de datos automáticamente: {}",
+                error
+            );
+            None
+        }
+    };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
-            db: Mutex::new(conn),
+            db: DatabaseHandle::new(conn),
             current_user: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
+            commands::settings::get_database_security_state,
+            commands::settings::initialize_database_security,
+            commands::settings::recover_database_key,
+            commands::settings::configure_backup_sync,
             commands::auth::login,
             commands::auth::get_current_user,
             commands::auth::logout,
             commands::dashboard::get_dashboard_data,
             commands::products::create_product,
             commands::products::list_products,
+            commands::products::list_products_page,
             commands::products::update_product,
             commands::products::delete_product,
             commands::products::search_products,
@@ -275,6 +355,10 @@ fn main() {
             commands::backups::export_backup,
             commands::backups::import_backup,
             commands::backups::open_backups_folder,
+            commands::backups::get_backup_sync_status,
+            commands::backups::sync_backups,
+            commands::backups::list_remote_backups,
+            commands::backups::download_remote_backup,
             print_ticket,
             commands::customers::create_customer,
             commands::customers::list_customers,

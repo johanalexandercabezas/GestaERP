@@ -55,7 +55,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
     formState: { errors },
     watch,
   } = useForm<ProductFormData>({
-    resolver: zodResolver(productSchema) as Resolver<ProductFormData, any>,
+    resolver: zodResolver(productSchema) as Resolver<ProductFormData, unknown>,
     defaultValues: product
       ? {
           sku: product.sku,

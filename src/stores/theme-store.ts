@@ -47,7 +47,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         get().setTheme(dbTheme as Theme);
         return;
       }
-    } catch {}
+    } catch { /* Sin tema en BD: se usará la preferencia del sistema */ }
     // 3. Preferencia del sistema operativo (prefers-color-scheme)
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (prefersDark) {

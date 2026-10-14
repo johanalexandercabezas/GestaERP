@@ -152,11 +152,11 @@ export default function LicenseActivationView({ onActivated }: Props) {
       try {
         const lic = await invoke<LicenseInfo>("get_license_status");
         setCurrentLicense(lic);
-      } catch {}
+      } catch { /* Sin licencia almacenada: se conserva el estado inicial */ }
       try {
         const impl = await invoke<ImplementationStatus>("get_implementation_status");
         setImplementationPaid(impl.is_paid);
-      } catch {}
+      } catch { /* Sin estado de implementación: se asume pendiente */ }
       setLoadingLicense(false);
     };
     init();

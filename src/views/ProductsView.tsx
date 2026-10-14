@@ -25,9 +25,16 @@ interface Product {
   unit: string;
 }
 
+interface ProductPage {
+  rows: Product[];
+  total: number;
+}
+
 interface ProductsViewProps {
   role: string;
 }
+
+const ITEMS_PER_PAGE = 15;
 
 function StockBadge({ stock, minStock }: { stock: number; minStock: number }) {
   if (stock <= 0) return <span className="text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger">Agotado</span>;
@@ -44,7 +51,8 @@ export default function ProductsView({ role }: ProductsViewProps) {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 15;
+  const [totalCount, setTotalCount] = useState(0);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
@@ -58,16 +66,37 @@ export default function ProductsView({ role }: ProductsViewProps) {
 
   const isAdmin = role === ROLES.ADMIN;
 
-  const loadProducts = async () => {
-    try {
-      const data = await invoke<Product[]>("list_products");
-      setProducts(data);
-    } catch (e) {
-      showToast("Error al cargar productos: " + String(e), "error");
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const timeout = window.setTimeout(() => {
+      invoke<ProductPage>("list_products_page", {
+        search: search.trim(),
+        page: currentPage,
+        pageSize: ITEMS_PER_PAGE,
+      }).then((result) => {
+        if (cancelled) return;
+        const lastPage = Math.max(1, Math.ceil(result.total / ITEMS_PER_PAGE));
+        if (currentPage > lastPage) {
+          setCurrentPage(lastPage);
+          return;
+        }
+        setProducts(result.rows);
+        setTotalCount(result.total);
+      }).catch((error: unknown) => {
+        if (!cancelled) {
+          showToast("Error al cargar productos: " + String(error), "error");
+        }
+      }).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    }, search.trim() ? 200 : 0);
 
-  useEffect(() => { loadProducts().finally(() => setLoading(false)); }, []);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [search, currentPage, refreshToken]);
 
   const resetForm = () => {
     setSku(""); setName(""); setDescription(""); setPrice("0"); setCost("0");
@@ -97,7 +126,9 @@ export default function ProductsView({ role }: ProductsViewProps) {
         unit: "UNIDAD",
       });
       showToast("Producto actualizado", "success");
-      setTimeout(() => { setShowForm(false); resetForm(); loadProducts(); }, 100);
+      setShowForm(false);
+      resetForm();
+      setRefreshToken((value) => value + 1);
     } catch (e) { setErrorMessage(String(e)); showToast("Error al actualizar", "error"); setSaving(false); }
   };
 
@@ -106,22 +137,15 @@ export default function ProductsView({ role }: ProductsViewProps) {
       await invoke("update_product", {
         id: product.id, sku: product.sku, name: product.name, description: product.description,
         price: String(product.price), cost: String(product.cost), stock: String(product.stock),
-        minStock: String(product.min_stock), maxStock: String(product.max_stock),
+        minStock: String(product.min_stock), maxStock: String(product.max_stock), unit: product.unit,
         ivaPercent: String(product.iva_percent), active: !product.active,
       });
       showToast(product.active ? "Producto inhabilitado" : "Producto habilitado", "success");
-      loadProducts();
+      setRefreshToken((value) => value + 1);
     } catch (e) { showToast("Error: " + String(e), "error"); }
   };
 
-  const filtered = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
-    if (!matchesSearch) return false;
-    return p.unit !== "SERVICIO";
-  });
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginatedProducts = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   return (
     <div className="flex-1 p-6 overflow-auto">
@@ -130,7 +154,7 @@ export default function ProductsView({ role }: ProductsViewProps) {
           className="text-2xl font-bold text-primary flex items-center gap-2">
           <Package className="text-accent" size={24} />
           Productos
-          <span className="text-sm font-normal text-secondary ml-2">({filtered.length} registros)</span>
+          <span className="text-sm font-normal text-secondary ml-2">({totalCount} registros)</span>
         </motion.h2>
         {/* Botón "+ Nuevo producto" eliminado */}
       </div>
@@ -138,7 +162,7 @@ export default function ProductsView({ role }: ProductsViewProps) {
       <div className="relative max-w-md mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
         <input type="text" placeholder="Buscar por nombre o SKU..." value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
           className="w-full pl-9 pr-4 py-2 bg-input border border-theme rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
       </div>
 
@@ -161,7 +185,7 @@ export default function ProductsView({ role }: ProductsViewProps) {
               </thead>
               <tbody className="text-sm">
                 <AnimatePresence mode="popLayout">
-                  {paginatedProducts.map((p, index) => (
+                  {products.map((p, index) => (
                     <motion.tr key={p.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }} transition={{ delay: index * 0.02 }}
                       className={`border-t border-theme hover:bg-input/30 transition-colors ${!p.active ? "opacity-50" : ""}`}>
@@ -197,7 +221,7 @@ export default function ProductsView({ role }: ProductsViewProps) {
                     </motion.tr>
                   ))}
                 </AnimatePresence>
-                {filtered.length === 0 && (
+                {!loading && products.length === 0 && (
                   <tr><td colSpan={isAdmin ? 7 : 6} className="p-8 text-center text-secondary">
                     <Package size={32} className="mx-auto mb-2 opacity-30" />
                     No se encontraron productos

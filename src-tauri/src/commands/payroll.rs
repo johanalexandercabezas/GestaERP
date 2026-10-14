@@ -55,9 +55,9 @@ pub fn generate_payroll_report(
 ) -> Result<Vec<String>, String> {
     auth_guard::require_admin(&state)?;
     eprintln!("[PAYROLL] Generando reporte PDF para {}", period);
-    let conn = crate::db::open_database().map_err(|e| {
-        eprintln!("[PAYROLL] Error al abrir BD para reporte: {}", e);
-        e.to_string()
+    let conn = state.db.lock().map_err(|e| {
+        eprintln!("[PAYROLL] Error al acceder a la base para reporte: {}", e);
+        e
     })?;
 
     let entries = crate::payroll::get_payroll_history(&conn, &period).map_err(|e| e.to_string())?;

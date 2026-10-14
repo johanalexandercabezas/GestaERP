@@ -25,39 +25,28 @@ env_logger = "0.11"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
-# NOTA P0-06 / AUD-002: Cifrado de base de datos
-# ============================================================
-# ACTUAL: rusqlite "bundled" = SQLite estándar SIN cifrado.
-# El PRAGMA key en db.rs se ejecuta pero se IGNORA completamente.
-# La BD gestaerp.db es legible con cualquier herramienta SQLite.
-#
-# PARA ACTIVAR CIFRADO REAL (requiere recompilación + migración de datos):
-#
-# Opción A — SQLCipher con compilación propia (recomendado Windows):
-#   1. Instalar vcpkg: git clone https://github.com/Microsoft/vcpkg
-#   2. vcpkg install sqlcipher:x64-windows
-#   3. Cambiar features a: ["bundled", "sqlcipher"]
-#   4. Recompilar: cargo build --release
-#   5. Exportar BD existente, borrar gestaerp.db, importar (la BD cifrada
-#      no es compatible con la BD sin cifrar)
-#
-# Opción B — bundled-sqlcipher (requiere OpenSSL):
-#   1. Instalar OpenSSL (choco install openssl / vcpkg install openssl)
-#   2. Cambiar features a: ["bundled-sqlcipher"]
-#   3. Recompilar + migrar datos igual que Opción A
-#
-# ⚠️ ADVERTENCIA: Activar cifrado cambia el formato de la BD.
-#   - Hacer backup completo antes de migrar.
-#   - La clave derivada de máquina (crypto.rs) debe preservarse.
-#   - Si se pierde la clave, los datos son irrecuperables.
-#   - Probar en entorno de desarrollo antes de producción.
-rusqlite = { version = "0.31", features = ["bundled"] }
+# SQLCipher is bundled for desktop builds; existing plaintext files are migrated
+# once, after the user establishes a portable recovery phrase.
+rusqlite = { version = "0.31", features = ["bundled-sqlcipher-vendored-openssl"] }
 argon2 = { version = "0.5", features = ["rand"] }
 rand = "0.8"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+zeroize = "1"
 printpdf = "0.7"
 dirs = "5"
 image = { version = "0.25", default-features = true }
 open = "5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio = { version = "1", features = ["fs", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }

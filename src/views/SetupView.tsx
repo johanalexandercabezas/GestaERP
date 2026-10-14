@@ -37,11 +37,10 @@ export default function SetupView({ onComplete }: SetupViewProps) {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fieldValues: Record<string, string> = { nombre, nit, telefono, direccion, ciudad, email };
-  const missingFields = useMemo(
-    () => REQUIRED_FIELDS.filter(f => !fieldValues[f.key].trim()),
-    [nombre, nit, telefono, direccion, ciudad, email]
-  );
+  const missingFields = useMemo(() => {
+    const fieldValues: Record<string, string> = { nombre, nit, telefono, direccion, ciudad, email };
+    return REQUIRED_FIELDS.filter(f => !fieldValues[f.key].trim());
+  }, [nombre, nit, telefono, direccion, ciudad, email]);
   const isFormValid = missingFields.length === 0;
 
   const handleFileSelect = useCallback((file: File) => {

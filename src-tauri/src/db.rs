@@ -2,8 +2,17 @@ use argon2::{
     password_hash::{PasswordHash, PasswordVerifier},
     Argon2,
 };
-use rusqlite::{Connection, Result};
-use serde::Serialize;
+use chrono::{Datelike, Duration as ChronoDuration, Local, Months};
+use hmac::{Hmac, Mac};
+use rusqlite::{params, Connection, Result};
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use std::collections::HashMap;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+use zeroize::Zeroizing;
 
 // ---------- Estructuras de datos ----------
 #[derive(Serialize)]
@@ -38,39 +47,692 @@ pub struct ProductoEstrella {
     pub total_vendido: f64,
 }
 
-/// Delega la derivación de clave al módulo crypto (C1+C3):
-///   machine_id = hostname|username
-///   db_key = HMAC-SHA256(pepper, SHA-256(machine_id))
-/// Cada instalación tiene una clave distinta.
-fn derive_machine_key() -> String {
-    crate::crypto::derive_db_key()
+const KEYRING_SERVICE: &str = "GestaERP";
+const KEYRING_ACCOUNT: &str = "database-key-v1";
+
+#[derive(Serialize, Clone)]
+pub struct DatabaseSecurityState {
+    pub status: String,
+    pub recovery_phrase_required: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct QueuedBackup {
+    pub filename: String,
+    pub sha256: String,
+    pub attempts: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SecurityMetadata {
+    version: u32,
+    kdf: String,
+    salt_hex: String,
+    mac_hex: String,
+}
+
+fn database_paths() -> std::result::Result<(PathBuf, PathBuf), String> {
+    let data_dir = dirs::data_dir().ok_or("No se encontró el directorio de datos del sistema")?;
+    let app_dir = data_dir.join("GestaERP");
+    fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("No se pudo crear el directorio de datos: {e}"))?;
+    Ok((
+        app_dir.join("gestaerp.db"),
+        app_dir.join("gestaerp.security.json"),
+    ))
+}
+
+fn keyring_entry() -> std::result::Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+        .map_err(|e| format!("No se pudo acceder al almacén seguro del sistema: {e}"))
+}
+
+fn keyring_get() -> std::result::Result<Option<String>, String> {
+    match keyring_entry()?.get_password() {
+        Ok(key) => Ok(Some(key)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("No se pudo leer la clave del almacén seguro: {e}")),
+    }
+}
+
+fn keyring_set(key: &str) -> std::result::Result<(), String> {
+    keyring_entry()?
+        .set_password(key)
+        .map_err(|e| format!("No se pudo guardar la clave en el almacén seguro: {e}"))
+}
+
+fn is_plaintext_database(path: &Path) -> std::result::Result<bool, String> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let mut file =
+        File::open(path).map_err(|e| format!("No se pudo leer la base de datos: {e}"))?;
+    let mut header = [0_u8; 16];
+    use std::io::Read;
+    let count = file
+        .read(&mut header)
+        .map_err(|e| format!("No se pudo identificar la base de datos: {e}"))?;
+    Ok(count == 16 && &header == b"SQLite format 3\0")
+}
+
+fn read_security_metadata(path: &Path) -> std::result::Result<SecurityMetadata, String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("No se pudo leer la metadata de seguridad: {e}"))?;
+    let metadata: SecurityMetadata = serde_json::from_str(&content)
+        .map_err(|e| format!("La metadata de seguridad no es válida: {e}"))?;
+    if metadata.version != 1 || metadata.kdf != "argon2id-v1" {
+        return Err(
+            "La versión de cifrado/KDF de esta base de datos no es compatible.".to_string(),
+        );
+    }
+    let salt = hex::decode(&metadata.salt_hex)
+        .map_err(|e| format!("La sal de recuperación no es válida: {e}"))?;
+    if salt.len() != 16 || hex::decode(&metadata.mac_hex).map_or(true, |mac| mac.len() != 32) {
+        return Err("La metadata de recuperación tiene longitud inválida.".to_string());
+    }
+    Ok(metadata)
+}
+
+fn metadata_mac(key: &str, salt: &[u8]) -> std::result::Result<String, String> {
+    let key_bytes =
+        hex::decode(key).map_err(|e| format!("La clave SQLCipher no es válida: {e}"))?;
+    let mut mac = Hmac::<Sha256>::new_from_slice(&key_bytes)
+        .map_err(|e| format!("No se pudo preparar la autenticación de metadata: {e}"))?;
+    mac.update(b"GestaERP-security-metadata-v1");
+    mac.update(salt);
+    Ok(hex::encode(mac.finalize().into_bytes()))
+}
+
+fn verify_metadata_key(metadata: &SecurityMetadata, key: &str) -> std::result::Result<(), String> {
+    let salt = hex::decode(&metadata.salt_hex)
+        .map_err(|e| format!("La sal de recuperación no es válida: {e}"))?;
+    let key_bytes =
+        hex::decode(key).map_err(|e| format!("La clave SQLCipher no es válida: {e}"))?;
+    let mut mac = Hmac::<Sha256>::new_from_slice(&key_bytes)
+        .map_err(|e| format!("No se pudo preparar la autenticación de metadata: {e}"))?;
+    mac.update(b"GestaERP-security-metadata-v1");
+    mac.update(&salt);
+    mac.verify_slice(&hex::decode(&metadata.mac_hex).map_err(|e| e.to_string())?)
+        .map_err(|_| "La metadata de recuperación no coincide con la clave.".to_string())
+}
+
+pub fn active_backup_material() -> std::result::Result<(Zeroizing<String>, [u8; 16]), String> {
+    let (_, metadata_path) = database_paths()?;
+    let key = keyring_get()?.ok_or_else(|| {
+        "La base de datos está bloqueada; no se puede crear o restaurar un backup.".to_string()
+    })?;
+    let key = Zeroizing::new(key);
+    let metadata = read_security_metadata(&metadata_path)?;
+    verify_metadata_key(&metadata, key.as_str())?;
+    let salt = hex::decode(&metadata.salt_hex)
+        .map_err(|e| format!("La sal de recuperación no es válida: {e}"))?;
+    let salt: [u8; 16] = salt
+        .try_into()
+        .map_err(|_| "La sal de recuperación tiene una longitud inválida.".to_string())?;
+    Ok((key, salt))
+}
+
+fn write_security_metadata(path: &Path, salt: &[u8], key: &str) -> std::result::Result<(), String> {
+    let metadata = SecurityMetadata {
+        version: 1,
+        kdf: "argon2id-v1".to_string(),
+        salt_hex: hex::encode(salt),
+        mac_hex: metadata_mac(key, salt)?,
+    };
+    let bytes = serde_json::to_vec(&metadata)
+        .map_err(|e| format!("No se pudo serializar metadata: {e}"))?;
+    let temp = path.with_extension(format!(
+        "security.{}.{}.tmp",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|e| format!("No se pudo crear metadata temporal: {e}"))?;
+    file.write_all(&bytes)
+        .map_err(|e| format!("No se pudo guardar metadata: {e}"))?;
+    file.sync_all()
+        .map_err(|e| format!("No se pudo sincronizar metadata: {e}"))?;
+    fs::rename(&temp, path).map_err(|e| format!("No se pudo instalar metadata de seguridad: {e}"))
+}
+
+pub fn database_security_state() -> std::result::Result<DatabaseSecurityState, String> {
+    let (database_path, metadata_path) = database_paths()?;
+    if !database_path.exists() {
+        return Ok(DatabaseSecurityState {
+            status: "new_database".to_string(),
+            recovery_phrase_required: true,
+        });
+    }
+    if is_plaintext_database(&database_path)? {
+        return Ok(DatabaseSecurityState {
+            status: "migration_required".to_string(),
+            recovery_phrase_required: true,
+        });
+    }
+    if !metadata_path.exists() {
+        return Err("La base parece cifrada, pero falta su metadata de recuperación. No se modificó ningún dato.".to_string());
+    }
+    Ok(DatabaseSecurityState {
+        status: if keyring_get()?.is_some() {
+            "unlocking"
+        } else {
+            "recovery_required"
+        }
+        .to_string(),
+        recovery_phrase_required: true,
+    })
+}
+
+pub(crate) fn open_cipher_file(path: &Path, key: &str) -> std::result::Result<Connection, String> {
+    open_cipher_database(path, key)
+        .map_err(|e| format!("No se pudo abrir el archivo SQLCipher: {e}"))
+}
+
+fn open_cipher_database(path: &Path, key: &str) -> rusqlite::Result<Connection> {
+    if key.len() != 64 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "Clave SQLCipher inválida".to_string(),
+        ));
+    }
+    let conn = Connection::open(path)?;
+    conn.execute_batch(&format!("PRAGMA key = \"x'{key}'\";"))?;
+    conn.query_row("SELECT count(*) FROM sqlite_master", [], |row| {
+        row.get::<_, i64>(0)
+    })
+    .map_err(|e| {
+        rusqlite::Error::InvalidParameterName(format!(
+            "No se pudo desbloquear la base (clave incorrecta o archivo dañado): {e}"
+        ))
+    })?;
+    configure_connection(&conn)?;
+    Ok(conn)
+}
+
+fn initialize_schema(conn: &Connection) -> Result<()> {
+    run_migrations(conn)?;
+    crate::calendar_notes::create_table(conn)?;
+    crate::implementation::create_table(conn)?;
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sync_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            backup_filename TEXT NOT NULL UNIQUE,
+            sha256 TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'retry', 'uploaded')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            next_attempt_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            last_error TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            synced_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_sync_queue_due
+            ON sync_queue(status, next_attempt_at);",
+    )?;
+    create_default_admin(conn)?;
+    Ok(())
+}
+
+pub fn enqueue_backup(conn: &Connection, filename: &str, sha256: &str) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO sync_queue (backup_filename, sha256)
+         VALUES (?1, ?2)",
+        params![filename, sha256],
+    )?;
+    Ok(())
+}
+
+pub fn pending_backups(conn: &Connection, limit: i64) -> Result<Vec<QueuedBackup>> {
+    let mut statement = conn.prepare_cached(
+        "SELECT backup_filename, sha256, attempts
+         FROM sync_queue
+         WHERE status IN ('pending', 'retry')
+           AND next_attempt_at <= datetime('now','localtime')
+         ORDER BY id
+         LIMIT ?1",
+    )?;
+    let rows = statement.query_map([limit.clamp(1, 100)], |row| {
+        Ok(QueuedBackup {
+            filename: row.get(0)?,
+            sha256: row.get(1)?,
+            attempts: row.get(2)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn mark_backup_uploaded(conn: &Connection, filename: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_queue
+         SET status = 'uploaded', synced_at = datetime('now','localtime'),
+             last_error = NULL
+         WHERE backup_filename = ?1",
+        [filename],
+    )?;
+    Ok(())
+}
+
+pub fn mark_backup_retry(conn: &Connection, filename: &str, error: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_queue
+         SET status = 'retry',
+             attempts = attempts + 1,
+             next_attempt_at = datetime(
+                 'now','localtime',
+                 '+' || min(360, (1 << min(attempts, 8))) || ' minutes'
+             ),
+             last_error = ?2
+         WHERE backup_filename = ?1",
+        params![filename, error],
+    )?;
+    Ok(())
+}
+
+pub fn backup_sync_status(conn: &Connection) -> Result<(i64, i64)> {
+    conn.query_row(
+        "SELECT
+            SUM(CASE WHEN status IN ('pending', 'retry') THEN 1 ELSE 0 END),
+            SUM(CASE WHEN status = 'uploaded' THEN 1 ELSE 0 END)
+         FROM sync_queue",
+        [],
+        |row| {
+            Ok((
+                row.get::<_, Option<i64>>(0)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+            ))
+        },
+    )
+}
+
+pub fn store_backup_sync_token(token: &str) -> std::result::Result<(), String> {
+    keyring::Entry::new(KEYRING_SERVICE, "backup-sync-token-v1")
+        .map_err(|e| format!("No se pudo acceder al almacén seguro: {e}"))?
+        .set_password(token)
+        .map_err(|e| format!("No se pudo guardar el token remoto: {e}"))
+}
+
+pub fn backup_sync_token() -> std::result::Result<Option<Zeroizing<String>>, String> {
+    match keyring::Entry::new(KEYRING_SERVICE, "backup-sync-token-v1")
+        .map_err(|e| format!("No se pudo acceder al almacén seguro: {e}"))?
+        .get_password()
+    {
+        Ok(token) => Ok(Some(Zeroizing::new(token))),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("No se pudo leer el token remoto: {e}")),
+    }
+}
+
+fn verify_integrity(conn: &Connection) -> rusqlite::Result<()> {
+    let result: String = conn.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+    if result != "ok" {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "La comprobación de integridad falló: {result}"
+        )));
+    }
+    Ok(())
+}
+
+fn remove_if_present(path: &Path) -> std::result::Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("No se pudo eliminar {}: {error}", path.display())),
+    }
+}
+
+pub(crate) fn export_to_sqlcipher(
+    source: &Connection,
+    temp_path: &Path,
+    key: &str,
+) -> std::result::Result<(), String> {
+    let destination = temp_path.to_string_lossy().replace('\'', "''");
+    let attach = format!("ATTACH DATABASE '{destination}' AS encrypted KEY \"x'{key}'\";");
+    source
+        .execute_batch(&attach)
+        .map_err(|e| format!("No se pudo crear el destino SQLCipher: {e}"))?;
+    let export_result = source.query_row("SELECT sqlcipher_export('encrypted')", [], |_| Ok(()));
+    let detach_result = source.execute_batch("DETACH DATABASE encrypted;");
+    export_result.map_err(|e| format!("Falló la exportación SQLCipher de la base: {e}"))?;
+    detach_result.map_err(|e| format!("No se pudo cerrar el destino SQLCipher: {e}"))?;
+
+    let encrypted = open_cipher_database(temp_path, key)
+        .map_err(|e| format!("El archivo cifrado no superó la verificación de apertura: {e}"))?;
+    verify_integrity(&encrypted)
+        .map_err(|e| format!("El archivo cifrado no superó integrity_check: {e}"))?;
+    Ok(())
+}
+
+fn migrate_plaintext_database(database_path: &Path, key: &str) -> std::result::Result<(), String> {
+    let source = Connection::open(database_path)
+        .map_err(|e| format!("No se pudo abrir la base existente: {e}"))?;
+    configure_connection(&source)
+        .map_err(|e| format!("No se pudo configurar la base existente: {e}"))?;
+    initialize_schema(&source)
+        .map_err(|e| format!("No se pudieron completar las migraciones antes del cifrado: {e}"))?;
+    let (checkpoint_busy, _, _): (i64, i64, i64) = source
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| format!("No se pudo consolidar el WAL antes del cifrado: {e}"))?;
+    if checkpoint_busy != 0 {
+        return Err("La base sigue teniendo lectores activos; se canceló la migración para evitar perder transacciones.".to_string());
+    }
+
+    let temp_path = database_path.with_extension(format!("encrypted.{}.tmp", std::process::id()));
+    let _ = fs::remove_file(&temp_path);
+    if let Err(error) = export_to_sqlcipher(&source, &temp_path, key) {
+        if temp_path.exists() {
+            fs::remove_file(&temp_path).map_err(|cleanup| {
+                format!("{error}; no se pudo limpiar el archivo temporal: {cleanup}")
+            })?;
+        }
+        return Err(error);
+    }
+    drop(source);
+
+    let old_path =
+        database_path.with_extension(format!("plaintext-{}.db", chrono::Utc::now().timestamp()));
+    fs::rename(database_path, &old_path)
+        .map_err(|e| format!("No se pudo apartar de forma recuperable la base original: {e}"))?;
+    if let Err(error) = fs::rename(&temp_path, database_path) {
+        let _ = fs::rename(&old_path, database_path);
+        return Err(format!(
+            "No se pudo instalar la base cifrada; se restauró el archivo original: {error}"
+        ));
+    }
+    remove_if_present(&database_path.with_extension("db-wal"))?;
+    remove_if_present(&database_path.with_extension("db-shm"))?;
+    fs::remove_file(&old_path).map_err(|e| {
+        format!("La base está cifrada, pero no se pudo eliminar la copia temporal sin cifrar: {e}")
+    })?;
+    Ok(())
+}
+
+pub fn secure_database(recovery_phrase: &str) -> std::result::Result<Connection, String> {
+    let (database_path, metadata_path) = database_paths()?;
+    let salt = crate::crypto::generate_kdf_salt();
+    let key = Zeroizing::new(crate::crypto::derive_recovery_key(recovery_phrase, &salt)?);
+
+    if database_path.exists() {
+        if !is_plaintext_database(&database_path)? {
+            return Err("La base ya está cifrada o tiene un formato desconocido; usa recuperación en vez de reinicializarla.".to_string());
+        }
+        if metadata_path.exists() {
+            fs::remove_file(&metadata_path).map_err(|e| {
+                format!("No se pudo limpiar metadata de una migración interrumpida: {e}")
+            })?;
+        }
+        write_security_metadata(&metadata_path, &salt, key.as_str())?;
+        if let Err(error) = migrate_plaintext_database(&database_path, key.as_str()) {
+            match is_plaintext_database(&database_path) {
+                Ok(true) => {
+                    remove_if_present(&metadata_path).map_err(|cleanup| {
+                        format!("{error}; no se pudo limpiar metadata temporal: {cleanup}")
+                    })?;
+                }
+                Ok(false) => {}
+                Err(check) => {
+                    return Err(format!(
+                        "{error}; no se pudo determinar el estado de la migración ({check}); se conservó la metadata para recuperación"
+                    ));
+                }
+            }
+            return Err(error);
+        }
+        keyring_set(key.as_str())?;
+    } else {
+        if metadata_path.exists() {
+            remove_if_present(&metadata_path)?;
+        }
+        let temp_path =
+            database_path.with_extension(format!("encrypted.{}.tmp", std::process::id()));
+        let _ = fs::remove_file(&temp_path);
+        let conn = match open_cipher_database(&temp_path, key.as_str()) {
+            Ok(conn) => conn,
+            Err(error) => {
+                let _ = fs::remove_file(&temp_path);
+                return Err(format!("No se pudo crear la base cifrada: {error}"));
+            }
+        };
+        if let Err(error) = initialize_schema(&conn) {
+            drop(conn);
+            fs::remove_file(&temp_path).map_err(|cleanup| {
+                format!(
+                    "No se pudo inicializar el esquema ({error}) ni limpiar el temporal: {cleanup}"
+                )
+            })?;
+            return Err(format!("No se pudo inicializar el esquema: {error}"));
+        }
+        if let Err(error) = verify_integrity(&conn) {
+            drop(conn);
+            fs::remove_file(&temp_path)
+                .map_err(|cleanup| format!("La base nueva falló integrity_check ({error}) y el temporal no pudo limpiarse: {cleanup}"))?;
+            return Err(format!("La base nueva no superó integrity_check: {error}"));
+        }
+        drop(conn);
+        if let Err(error) = write_security_metadata(&metadata_path, &salt, key.as_str()) {
+            let _ = fs::remove_file(&temp_path);
+            return Err(error);
+        }
+        if let Err(error) = keyring_set(key.as_str()) {
+            let _ = fs::remove_file(&metadata_path);
+            let _ = fs::remove_file(&temp_path);
+            return Err(error);
+        }
+        if let Err(error) = fs::rename(&temp_path, &database_path) {
+            let _ = fs::remove_file(&metadata_path);
+            let _ = fs::remove_file(&temp_path);
+            return Err(format!("No se pudo instalar la base cifrada: {error}"));
+        }
+    }
+    let conn = open_cipher_database(&database_path, key.as_str())
+        .map_err(|e| format!("No se pudo reabrir la base cifrada: {e}"))?;
+    initialize_schema(&conn)
+        .map_err(|e| format!("No se pudo inicializar el esquema cifrado: {e}"))?;
+    enable_wal(&conn).map_err(|e| format!("No se pudo habilitar WAL: {e}"))?;
+    Ok(conn)
+}
+
+pub fn recover_database(
+    recovery_phrase: &str,
+    backup_path: Option<&str>,
+) -> std::result::Result<Connection, String> {
+    let (database_path, metadata_path) = database_paths()?;
+    if !database_path.exists() {
+        let backup_path = backup_path.ok_or_else(|| {
+            "No existe una base de datos; proporciona un backup .gbackup para restaurar."
+                .to_string()
+        })?;
+        let backup_path = Path::new(backup_path);
+        let temp_path = database_path.with_extension(format!("restore.{}.tmp", std::process::id()));
+        let salt = crate::backup::extract_encrypted_snapshot(backup_path, &temp_path)?;
+        let key = Zeroizing::new(crate::crypto::derive_recovery_key(recovery_phrase, &salt)?);
+        let result = (|| {
+            let conn = open_cipher_database(&temp_path, key.as_str())
+                .map_err(|e| format!("Frase incorrecta o backup dañado: {e}"))?;
+            verify_integrity(&conn).map_err(|e| format!("Backup corrupto: {e}"))?;
+            initialize_schema(&conn)
+                .map_err(|e| format!("No se pudieron aplicar las migraciones al backup: {e}"))?;
+            enable_wal(&conn).map_err(|e| format!("No se pudo habilitar WAL: {e}"))?;
+            drop(conn);
+
+            if metadata_path.exists() {
+                fs::remove_file(&metadata_path)
+                    .map_err(|e| format!("No se pudo limpiar metadata anterior: {e}"))?;
+            }
+            write_security_metadata(&metadata_path, &salt, key.as_str())?;
+            if let Err(error) = fs::rename(&temp_path, &database_path) {
+                let _ = fs::remove_file(&metadata_path);
+                return Err(format!("No se pudo instalar la base restaurada: {error}"));
+            }
+            keyring_set(key.as_str())?;
+            open_cipher_database(&database_path, key.as_str())
+                .map_err(|e| format!("No se pudo abrir la base restaurada: {e}"))
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temp_path);
+        }
+        return result;
+    }
+    if backup_path.is_some() {
+        return Err("La base ya existe; no se permite restaurar un backup sobre una base existente desde la pantalla de recuperación.".to_string());
+    }
+    let metadata = read_security_metadata(&metadata_path)?;
+    let salt = hex::decode(&metadata.salt_hex)
+        .map_err(|e| format!("La sal de recuperación no es válida: {e}"))?;
+    let key = Zeroizing::new(crate::crypto::derive_recovery_key(recovery_phrase, &salt)?);
+    verify_metadata_key(&metadata, key.as_str())?;
+    let conn = open_cipher_database(&database_path, key.as_str()).map_err(|e| e.to_string())?;
+    verify_integrity(&conn).map_err(|e| e.to_string())?;
+    initialize_schema(&conn).map_err(|e| format!("No se pudieron aplicar migraciones: {e}"))?;
+    enable_wal(&conn).map_err(|e| format!("No se pudo habilitar WAL: {e}"))?;
+    keyring_set(key.as_str())?;
+    Ok(conn)
+}
+
+pub fn open_from_keyring() -> std::result::Result<Option<Connection>, String> {
+    let (database_path, metadata_path) = database_paths()?;
+    if !database_path.exists() || is_plaintext_database(&database_path)? {
+        return Ok(None);
+    }
+    if !metadata_path.exists() {
+        return Err("Falta la metadata de recuperación de la base cifrada.".to_string());
+    }
+    let Some(key) = keyring_get()? else {
+        return Ok(None);
+    };
+    let key = Zeroizing::new(key);
+    let metadata = read_security_metadata(&metadata_path)?;
+    verify_metadata_key(&metadata, key.as_str())?;
+    let conn = open_cipher_database(&database_path, key.as_str()).map_err(|e| e.to_string())?;
+    initialize_schema(&conn)
+        .map_err(|e| format!("No se pudieron ejecutar las migraciones: {e}"))?;
+    enable_wal(&conn).map_err(|e| format!("No se pudo habilitar WAL: {e}"))?;
+    Ok(Some(conn))
+}
+
+fn sales_for_recent_days(conn: &Connection, days: usize) -> Result<Vec<f64>> {
+    let today = Local::now().date_naive();
+    let first_day = today - ChronoDuration::days(days.saturating_sub(1) as i64);
+    let end_day = today + ChronoDuration::days(1);
+    let start_bound = first_day.format("%Y-%m-%d").to_string();
+    let end_bound = end_day.format("%Y-%m-%d").to_string();
+
+    let mut stmt = conn.prepare_cached(
+        "SELECT date(created_at), COALESCE(SUM(total), 0)
+         FROM sales
+         WHERE created_at >= ?1 AND created_at < ?2
+         GROUP BY date(created_at)",
+    )?;
+    let rows = stmt.query_map(params![start_bound, end_bound], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+    })?;
+    let mut totals_by_day = HashMap::new();
+    for row in rows {
+        let (day, total) = row?;
+        totals_by_day.insert(day, total);
+    }
+
+    Ok((0..days)
+        .rev()
+        .map(|offset| {
+            let day = (today - ChronoDuration::days(offset as i64))
+                .format("%Y-%m-%d")
+                .to_string();
+            totals_by_day.get(&day).copied().unwrap_or(0.0)
+        })
+        .collect())
+}
+
+fn sales_for_recent_months(conn: &Connection, months: usize) -> Result<Vec<(String, f64)>> {
+    let current_month = Local::now()
+        .date_naive()
+        .with_day(1)
+        .ok_or(rusqlite::Error::InvalidQuery)?;
+    let first_month = current_month
+        .checked_sub_months(Months::new(months.saturating_sub(1) as u32))
+        .ok_or(rusqlite::Error::InvalidQuery)?;
+    let end_month = current_month
+        .checked_add_months(Months::new(1))
+        .ok_or(rusqlite::Error::InvalidQuery)?;
+    let start_bound = first_month.format("%Y-%m-%d").to_string();
+    let end_bound = end_month.format("%Y-%m-%d").to_string();
+
+    let mut stmt = conn.prepare_cached(
+        "SELECT strftime('%Y-%m', created_at), COALESCE(SUM(total), 0)
+         FROM sales
+         WHERE created_at >= ?1 AND created_at < ?2
+         GROUP BY strftime('%Y-%m', created_at)",
+    )?;
+    let rows = stmt.query_map(params![start_bound, end_bound], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+    })?;
+    let mut totals_by_month = HashMap::new();
+    for row in rows {
+        let (month, total) = row?;
+        totals_by_month.insert(month, total);
+    }
+
+    (0..months)
+        .map(|offset| {
+            let month = current_month
+                .checked_sub_months(Months::new(offset as u32))
+                .ok_or(rusqlite::Error::InvalidQuery)?
+                .format("%Y-%m")
+                .to_string();
+            Ok((
+                month.clone(),
+                totals_by_month.get(&month).copied().unwrap_or(0.0),
+            ))
+        })
+        .collect()
+}
+
+fn configure_connection(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "PRAGMA foreign_keys = ON;
+         PRAGMA synchronous = NORMAL;
+         PRAGMA cache_size = -32000;",
+    )?;
+    conn.busy_timeout(Duration::from_secs(5))?;
+    Ok(())
+}
+
+fn enable_wal(conn: &Connection) -> Result<()> {
+    let journal_mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
+    if !journal_mode.eq_ignore_ascii_case("wal") {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "SQLite no pudo habilitar WAL; modo activo: {}",
+            journal_mode
+        )));
+    }
+    Ok(())
 }
 
 // ---------- Apertura de base de datos ----------
 pub fn open_database() -> Result<Connection> {
-    let data_dir =
-        dirs::data_dir().expect("No se pudo encontrar el directorio de datos del sistema");
-    let app_dir = data_dir.join("GestaERP");
-    std::fs::create_dir_all(&app_dir).expect("No se pudo crear el directorio de la base de datos");
-
-    let db_path = app_dir.join("gestaerp.db");
-    let conn = Connection::open(&db_path)?;
-
-    // P1-04 FIX: Activar integridad referencial (FOREIGN KEY enforcement)
-    // y timeout de bloqueo para operaciones concurrentes.
-    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
-
-    // Clave derivada de la máquina: cada PC tiene una clave única.
-    // NOTA P0-06: con `rusqlite` estándar (sin feature "sqlcipher"), PRAGMA key se IGNORA.
-    // Para activar cifrado real: usar features = ["bundled", "sqlcipher"] en Cargo.toml.
-    let machine_key = derive_machine_key();
-    let _ = conn.pragma_update(None, "key", &machine_key);
-
-    // Si la BD es nueva (no existía), la clave se establece automáticamente.
-    // Si ya existía y la clave no coincide, el SELECT fallará con error de "file is not a database"
-    conn.execute_batch("SELECT count(*) FROM sqlite_master")
-        .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Error de lectura de BD (¿clave incorrecta? - posiblemente BD de otra máquina o corrupta): {}", e)))?;
-
+    let (database_path, metadata_path) =
+        database_paths().map_err(rusqlite::Error::InvalidParameterName)?;
+    if !metadata_path.exists() {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "La base no está inicializada con SQLCipher.".to_string(),
+        ));
+    }
+    let key = keyring_get()
+        .map_err(rusqlite::Error::InvalidParameterName)?
+        .ok_or_else(|| {
+            rusqlite::Error::InvalidParameterName(
+                "La base está bloqueada; se requiere la frase de recuperación.".to_string(),
+            )
+        })?;
+    let key = Zeroizing::new(key);
+    let metadata =
+        read_security_metadata(&metadata_path).map_err(rusqlite::Error::InvalidParameterName)?;
+    verify_metadata_key(&metadata, key.as_str()).map_err(rusqlite::Error::InvalidParameterName)?;
+    let conn = open_cipher_database(&database_path, key.as_str())?;
+    enable_wal(&conn)?;
     Ok(conn)
 }
 
@@ -181,16 +843,8 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         |row| row.get(0),
     )?;
 
-    let mut ventas_ultimos_7_dias = Vec::new();
-    for i in 0..7 {
-        let date_offset = format!("-{} day", i);
-        let total: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(created_at) = date('now', 'localtime', ?1)",
-            [&date_offset],
-            |row| row.get(0),
-        )?;
-        ventas_ultimos_7_dias.push(total);
-    }
+    let ventas_ultimos_30_dias = sales_for_recent_days(conn, 30)?;
+    let ventas_ultimos_7_dias = ventas_ultimos_30_dias[23..].to_vec();
 
     let producto_mas_vendido_mes = match conn.query_row(
         "SELECT p.name, SUM(si.quantity) as total_vendido FROM sale_items si JOIN products p ON p.id = si.product_id JOIN sales s ON s.id = si.sale_id WHERE strftime('%Y-%m', s.created_at) = strftime('%Y-%m', 'now', 'localtime') GROUP BY si.product_id ORDER BY total_vendido DESC LIMIT 1",
@@ -236,27 +890,7 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         |row| row.get(0),
     )?;
 
-    // Ventas últimos 30 días
-    let mut ventas_ultimos_30_dias = Vec::new();
-    for i in 0..30 {
-        let date_offset = format!("-{} day", i);
-        let total: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(created_at) = date('now', 'localtime', ?1)",
-            [&date_offset], |row| row.get(0),
-        )?;
-        ventas_ultimos_30_dias.push(total);
-    }
-
-    // Ventas por mes (últimos 6 meses)
-    let mut ventas_por_mes_6 = Vec::new();
-    for i in 0..6 {
-        let month_offset = format!("-{} month", i);
-        let (mes, total): (String, f64) = conn.query_row(
-            "SELECT strftime('%Y-%m', 'now', 'localtime', ?1) as mes, COALESCE(SUM(total), 0) FROM sales WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', ?1)",
-            [&month_offset], |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        ventas_por_mes_6.push((mes, total));
-    }
+    let ventas_por_mes_6 = sales_for_recent_months(conn, 6)?;
 
     // Métodos de pago del mes
     let mut stmt = conn.prepare(
@@ -744,11 +1378,9 @@ ALTER TABLE inventory_movements ADD COLUMN empresa_id INTEGER DEFAULT 1;
 "#;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = open_database()?;
-    run_migrations(&conn)?;
-    crate::calendar_notes::create_table(&conn)?;
-    crate::implementation::create_table(&conn)?;
-    create_default_admin(&conn)?;
+    let mut conn = open_database()?;
+    initialize_schema(&conn)?;
+    enable_wal(&conn)?;
     Ok(conn)
 }
 
@@ -930,3 +1562,204 @@ CREATE INDEX IF NOT EXISTS idx_receivables_status ON receivables(status);
 CREATE INDEX IF NOT EXISTS idx_payroll_entries_period ON payroll_entries(period);
 CREATE INDEX IF NOT EXISTS idx_physical_counts_status ON physical_counts(status);
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn security_metadata_mac_detects_salt_tampering() {
+        let key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let salt = [3_u8; 16];
+        let metadata = SecurityMetadata {
+            version: 1,
+            kdf: "argon2id-v1".to_string(),
+            salt_hex: hex::encode(salt),
+            mac_hex: metadata_mac(key, &salt).unwrap(),
+        };
+        assert!(verify_metadata_key(&metadata, key).is_ok());
+
+        let mut tampered = metadata;
+        tampered.salt_hex = hex::encode([4_u8; 16]);
+        assert!(verify_metadata_key(&tampered, key).is_err());
+    }
+
+    #[test]
+    fn plaintext_export_produces_a_real_sqlcipher_database() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let source_path = std::env::temp_dir().join(format!(
+            "gestaerp-plain-export-{}-{}.db",
+            std::process::id(),
+            unique
+        ));
+        let encrypted_path = source_path.with_extension("encrypted.db");
+        let key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let source = Connection::open(&source_path).unwrap();
+        source
+            .execute_batch("CREATE TABLE payload (value TEXT NOT NULL); INSERT INTO payload VALUES ('preserved');")
+            .unwrap();
+
+        export_to_sqlcipher(&source, &encrypted_path, key).unwrap();
+        drop(source);
+        let encrypted = open_cipher_database(&encrypted_path, key).unwrap();
+        let value: String = encrypted
+            .query_row("SELECT value FROM payload", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, "preserved");
+        assert!(open_cipher_database(&encrypted_path, "f".repeat(64).as_str()).is_err());
+        drop(encrypted);
+
+        let bytes = std::fs::read(&encrypted_path).unwrap();
+        assert_ne!(&bytes[..16], b"SQLite format 3\0");
+        let _ = std::fs::remove_file(source_path);
+        let _ = std::fs::remove_file(&encrypted_path);
+    }
+
+    #[test]
+    fn sync_queue_is_idempotent_and_tracks_retry_and_success() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sync_queue (
+                id INTEGER PRIMARY KEY,
+                backup_filename TEXT UNIQUE,
+                sha256 TEXT,
+                status TEXT DEFAULT 'pending',
+                attempts INTEGER DEFAULT 0,
+                next_attempt_at TEXT DEFAULT (datetime('now','localtime')),
+                last_error TEXT,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                synced_at TEXT
+            );",
+        )
+        .unwrap();
+        enqueue_backup(&conn, "backup.gbackup", &"a".repeat(64)).unwrap();
+        enqueue_backup(&conn, "backup.gbackup", &"b".repeat(64)).unwrap();
+        assert_eq!(pending_backups(&conn, 20).unwrap().len(), 1);
+
+        mark_backup_retry(&conn, "backup.gbackup", "offline").unwrap();
+        let attempts: i64 = conn
+            .query_row(
+                "SELECT attempts FROM sync_queue WHERE backup_filename = 'backup.gbackup'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(attempts, 1);
+        assert!(pending_backups(&conn, 20).unwrap().is_empty());
+        mark_backup_uploaded(&conn, "backup.gbackup").unwrap();
+        assert_eq!(backup_sync_status(&conn).unwrap(), (0, 1));
+    }
+
+    #[test]
+    fn connection_configuration_enables_foreign_keys_and_cache() {
+        let conn = Connection::open_in_memory().unwrap();
+        configure_connection(&conn).unwrap();
+
+        let foreign_keys: i64 = conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .unwrap();
+        let cache_size: i64 = conn
+            .query_row("PRAGMA cache_size", [], |row| row.get(0))
+            .unwrap();
+        let synchronous: i64 = conn
+            .query_row("PRAGMA synchronous", [], |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(foreign_keys, 1);
+        assert_eq!(cache_size, -32_000);
+        assert_eq!(synchronous, 1);
+    }
+
+    #[test]
+    fn disk_connection_enables_wal() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let db_path = std::env::temp_dir().join(format!(
+            "gestaerp-wal-test-{}-{}.db",
+            std::process::id(),
+            unique
+        ));
+        let conn = Connection::open(&db_path).unwrap();
+        configure_connection(&conn).unwrap();
+        enable_wal(&conn).unwrap();
+
+        let journal_mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+        drop(conn);
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_file(db_path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(db_path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn recent_daily_sales_are_aggregated_and_chronological() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE sales (created_at TEXT NOT NULL, total REAL NOT NULL)")
+            .unwrap();
+
+        let today = Local::now().date_naive();
+        let today_at = format!("{} 10:00:00", today.format("%Y-%m-%d"));
+        let yesterday_at = format!(
+            "{} 10:00:00",
+            (today - ChronoDuration::days(1)).format("%Y-%m-%d")
+        );
+        let two_days_ago_at = format!(
+            "{} 10:00:00",
+            (today - ChronoDuration::days(2)).format("%Y-%m-%d")
+        );
+        conn.execute(
+            "INSERT INTO sales (created_at, total) VALUES (?1, 10), (?1, 20), (?2, 5), (?3, 7)",
+            params![today_at, yesterday_at, two_days_ago_at],
+        )
+        .unwrap();
+
+        assert_eq!(
+            sales_for_recent_days(&conn, 3).unwrap(),
+            vec![7.0, 5.0, 30.0]
+        );
+    }
+
+    #[test]
+    fn recent_monthly_sales_are_aggregated_newest_first() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE sales (created_at TEXT NOT NULL, total REAL NOT NULL)")
+            .unwrap();
+
+        let current_month = Local::now().date_naive().with_day(1).unwrap();
+        let current_month_sale = format!("{} 10:00:00", Local::now().format("%Y-%m-%d"));
+        let previous_month_sale = format!(
+            "{} 10:00:00",
+            current_month
+                .checked_sub_months(Months::new(1))
+                .unwrap()
+                .format("%Y-%m-%d")
+        );
+        conn.execute(
+            "INSERT INTO sales (created_at, total) VALUES (?1, 10), (?2, 5)",
+            params![current_month_sale, previous_month_sale],
+        )
+        .unwrap();
+
+        let months = sales_for_recent_months(&conn, 3).unwrap();
+        assert_eq!(months.len(), 3);
+        assert_eq!(months[0].0, current_month.format("%Y-%m").to_string());
+        assert_eq!(months[0].1, 10.0);
+        assert_eq!(
+            months[1].0,
+            current_month
+                .checked_sub_months(Months::new(1))
+                .unwrap()
+                .format("%Y-%m")
+                .to_string()
+        );
+        assert_eq!(months[1].1, 5.0);
+        assert_eq!(months[2].1, 0.0);
+    }
+}

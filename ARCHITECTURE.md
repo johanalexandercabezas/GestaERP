@@ -33,7 +33,7 @@ GestaERP es un sistema ERP de escritorio para Windows/Linux/macOS, construido co
 | Principio | Implementación |
 |---|---|
 | **Offline-First** | Todos los datos en SQLite local. Sin dependencia de internet. |
-| **Secure by Design** | Argon2 para contraseñas, SQLCipher para DB, machine binding. |
+| **Secure by Design** | Argon2id para contraseñas y clave de recuperación, SQLCipher y almacén seguro del SO. |
 | **Defense in Depth** | Rate limiting, validación de inputs, CSP, auth guards. |
 | **Preparado para SaaS** | `empresa_id` en todas las tablas, migración 007 lista. |
 | **Clean Architecture** | Dominio separado de comandos Tauri, TransactionGuard DRY. |
@@ -100,7 +100,7 @@ GestaERP es un sistema ERP de escritorio para Windows/Linux/macOS, construido co
 │  ├── validation.rs      Validación de inputs (OWASP)         │
 │  ├── rate_limiter.rs    Protección fuerza bruta              │
 │  ├── transaction.rs     TransactionGuard (DRY)               │
-│  ├── crypto.rs          Derivación de clave por máquina      │
+│  ├── crypto.rs          Derivación Argon2id de clave portable│
 │  ├── license.rs         HMAC-SHA256 para licencias           │
 │  ├── audit.rs           Registro de auditoría                │
 │  ├── commands/          28 módulos de comandos Tauri         │
@@ -195,8 +195,11 @@ Sistema de migraciones versionadas en `schema_migrations`:
 - **Frontend**: oculta menú según rol, backend es fuente de verdad
 
 ### Protección de Datos
-- **SQLCipher**: Base de datos encriptada con clave derivada por máquina (`hostname|username`)
-- **Machine binding**: La BD no se puede abrir en otra máquina
+- **SQLCipher**: La base se cifra con una clave Argon2id derivada de la frase de recuperación
+- **Almacén seguro**: La clave se guarda en el keyring nativo y la frase no se persiste
+- **Backups `.gbackup`**: snapshot SQLCipher y sal de recuperación; el servidor remoto recibe solo bytes cifrados
+- **Portabilidad**: la restauración en otro equipo requiere el backup y su frase de recuperación
+- **Snapshots/restauración**: se usa `sqlcipher_export` dentro de SQLCipher; la API SQLite `Backup` no admite bases cifradas
 - **Variables de entorno**: Secretos (`GESTAERP_SECRET_KEY`) nunca en código fuente
 
 ### OWASP Top 10 Mitigaciones
@@ -204,7 +207,7 @@ Sistema de migraciones versionadas en `schema_migrations`:
 | Riesgo | Mitigación |
 |---|---|
 | A01:2021 Broken Access Control | `auth_guard.rs` + `validation.rs` |
-| A02:2021 Cryptographic Failures | Argon2 + SQLCipher + machine binding |
+| A02:2021 Cryptographic Failures | Argon2id + SQLCipher + keyring nativo + frase portable |
 | A03:2021 Injection | rusqlite parametrizado + `sanitize_sql_like()` |
 | A04:2021 Insecure Design | Threat modeling, defense in depth |
 | A05:2021 Security Misconfiguration | CSP en `tauri.conf.json` |
@@ -286,10 +289,11 @@ docker-compose up -d
 
 ```bash
 GESTAERP_SECRET_KEY=  # Clave maestra para licencias (cambiar en producción)
-GESTAERP_DB_PEPPER=   # Pepper para derivar clave de BD
 GESTAERP_ENV=production
 GESTAERP_LOG_LEVEL=info
 ```
+
+La clave SQLCipher se deriva de una frase de recuperación definida por el usuario y se guarda en el almacén seguro nativo; no se configura mediante variables de entorno.
 
 ---
 

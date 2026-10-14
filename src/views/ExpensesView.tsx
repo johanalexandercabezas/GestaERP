@@ -59,6 +59,7 @@ export default function ExpensesView({ userId }: { userId: number }) {
     } catch (e) { console.error(e); }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial y al cambiar de filtro; las funciones se recrean en cada render
   useEffect(() => { loadExpenses(); loadSuppliers(); }, [filterSupplier]);
 
   const handleSupplierChange = (id: number | null) => {

@@ -76,6 +76,19 @@ pub fn list_products(state: State<AppState>) -> Result<Vec<products::Product>, S
 }
 
 #[tauri::command]
+pub fn list_products_page(
+    state: State<AppState>,
+    search: String,
+    page: u32,
+    page_size: u32,
+) -> Result<products::ProductPage, String> {
+    auth_guard::require_auth(&state)?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    products::list_products_page(&conn, &search, page, page_size)
+        .map_err(|e| format!("Error: {}", e))
+}
+
+#[tauri::command]
 pub fn update_product(
     state: State<AppState>,
     id: i64,

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, FileText, Send, CheckCircle, XCircle, Clock, Printer, Trash2, ArrowRight } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import PremiumModal from "../components/ui/PremiumModal";
 import PremiumButton from "../components/ui/PremiumButton";
 import { showToast } from "../components/ui/PremiumToast";
@@ -37,7 +38,7 @@ interface Quotation {
   created_at: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   Borrador: { label: "Borrador", color: "bg-gray-100 text-gray-800", icon: FileText },
   Enviada: { label: "Enviada", color: "bg-blue-100 text-blue-800", icon: Send },
   Aprobada: { label: "Aprobada", color: "bg-green-100 text-green-800", icon: CheckCircle },
@@ -72,6 +73,7 @@ export default function QuotationsView() {
 
   useEffect(() => {
     loadQuotations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadQuotations relee statusFilter; incluirla re-ejecutaría el efecto en cada render
   }, [statusFilter]);
 
   const loadQuotations = async () => {
@@ -97,9 +99,9 @@ export default function QuotationsView() {
     setTotal(tot);
   };
 
-  const updateItem = (index: number, field: keyof QuotationItem, value: any) => {
+  const updateItem = (index: number, field: keyof QuotationItem, value: QuotationItem[keyof QuotationItem]) => {
     const newItems = [...items];
-    (newItems[index] as any)[field] = value;
+    Object.assign(newItems[index], { [field]: value });
     setItems(newItems);
     calculateTotals(newItems);
   };

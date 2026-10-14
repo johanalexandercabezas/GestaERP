@@ -91,13 +91,29 @@ function KpiCard({ titulo, valor, color, subtitulo, icon, trend, delay }: {
 }
 
 // ──────────── Custom Pie Label ────────────
-function renderPieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+function renderPieLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+}: {
+  cx?: unknown;
+  cy?: unknown;
+  midAngle?: unknown;
+  innerRadius?: unknown;
+  outerRadius?: unknown;
+  percent?: unknown;
+}) {
+  const inner = Number(innerRadius);
+  const outer = Number(outerRadius);
+  const radius = inner + (outer - inner) * 0.5;
+  const x = Number(cx) + radius * Math.cos(-Number(midAngle) * RADIAN);
+  const y = Number(cy) + radius * Math.sin(-Number(midAngle) * RADIAN);
   return (
     <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
-      {`${(percent * 100).toFixed(0)}%`}
+      {`${(Number(percent) * 100).toFixed(0)}%`}
     </text>
   );
 }
@@ -279,8 +295,8 @@ export default function DashboardView() {
                 <XAxis dataKey="dia" className="text-xs fill-secondary" tickLine={false} />
                 <YAxis className="text-xs fill-secondary" tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  formatter={(value: any) => [formatCOP(Number(value)), "Ventas"]}
-                  labelFormatter={(label: any) => `Día: ${label}`}
+                  formatter={(value) => [formatCOP(Number(value)), "Ventas"]}
+                  labelFormatter={(label) => `Día: ${label}`}
                   contentStyle={{ borderRadius: 12, border: "1px solid var(--border-color)", background: "var(--card-bg)" }}
                 />
                 <Bar dataKey="ventas" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={40} />
@@ -296,7 +312,7 @@ export default function DashboardView() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-theme" strokeOpacity={0.3} />
                 <XAxis dataKey="dia" className="text-xs fill-secondary" tickLine={false} interval={4} />
                 <YAxis className="text-xs fill-secondary" tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: any) => [formatCOP(Number(value)), "Ventas"]} />
+                <Tooltip formatter={(value) => [formatCOP(Number(value)), "Ventas"]} />
                 <Area type="monotone" dataKey="ventas" stroke="#6366f1" strokeWidth={2} fill="url(#areaGradient)" />
               </AreaChart>
             )}
@@ -332,7 +348,7 @@ export default function DashboardView() {
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} strokeWidth={0} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: any) => [String(value), "Transacciones"]} />
+                <Tooltip formatter={(value) => [String(value), "Transacciones"]} />
                 <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-xs text-secondary">{value}</span>} />
               </PieChart>
             </ResponsiveContainer>
@@ -360,7 +376,7 @@ export default function DashboardView() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-theme" strokeOpacity={0.3} horizontal={false} />
                 <XAxis type="number" className="text-xs fill-secondary" tickLine={false} />
                 <YAxis type="category" dataKey="name" className="text-xs fill-secondary" tickLine={false} width={110} />
-                <Tooltip formatter={(value: any) => [String(value), "Unidades"]} />
+                <Tooltip formatter={(value) => [String(value), "Unidades"]} />
                 <Bar dataKey="cantidad" fill="#10b981" radius={[0, 6, 6, 0]} maxBarSize={24} />
               </BarChart>
             </ResponsiveContainer>
@@ -387,7 +403,7 @@ export default function DashboardView() {
               <CartesianGrid strokeDasharray="3 3" className="stroke-theme" strokeOpacity={0.3} />
               <XAxis dataKey="mes" className="text-xs fill-secondary" tickLine={false} />
               <YAxis className="text-xs fill-secondary" tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(value: any) => [formatCOP(Number(value)), "Ventas"]} />
+              <Tooltip formatter={(value) => [formatCOP(Number(value)), "Ventas"]} />
               <Line
                 type="monotone"
                 dataKey="ventas"

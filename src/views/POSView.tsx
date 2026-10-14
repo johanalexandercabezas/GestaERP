@@ -148,6 +148,7 @@ export default function POSView({ userId: _userId }: POSViewProps) {
       window.removeEventListener("keydown", handler);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckout cambia en cada render; el listener se re-registra solo cuando cambian cart/showPayment
   }, [cart, showPayment]);
 
   const handleCheckout = () => {

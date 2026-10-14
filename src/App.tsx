@@ -37,6 +37,7 @@ const GestaHelpView = lazy(() => import("./views/GestaHelpView"));
 import { useThemeStore } from "./stores/theme-store";
 import PremiumToaster from "./components/ui/PremiumToast";
 import ErrorBoundary from "./components/ErrorBoundary";
+import DatabaseSecurityView from "./views/DatabaseSecurityView";
 import { openExternal } from "./utils/openExternal";
 import {
   LayoutDashboard, Package, ShoppingCart, ClipboardList, Building2,
@@ -76,6 +77,7 @@ const menuItems = [
 ];
 
 function App() {
+  const [databaseSecurity, setDatabaseSecurity] = useState<string | null>(null);
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
   const [businessName, setBusinessName] = useState("Mi Negocio");
@@ -92,21 +94,28 @@ function App() {
 
   const { theme, toggleTheme, loadTheme } = useThemeStore();
 
-  useEffect(() => { loadTheme(); }, []);
+  useEffect(() => {
+    invoke<{ status: string }>("get_database_security_state")
+      .then(result => setDatabaseSecurity(result.status))
+      .catch(() => setDatabaseSecurity("error"));
+  }, []);
 
   useEffect(() => {
+    if (databaseSecurity !== "ready") return;
+    loadTheme();
     const loadNotifications = () => {
       invoke<NotificationItem[]>("get_notifications").then(setNotifications).catch(() => {});
     };
     loadNotifications();
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, [currentView]);
+  }, [currentView, databaseSecurity, loadTheme]);
 
   // ═══════════════════════════════════════════
   // INIT: Cargar todo en paralelo
   // ═══════════════════════════════════════════
   useEffect(() => {
+    if (databaseSecurity !== "ready") return;
     const initApp = async () => {
       try {
         const results = await Promise.allSettled([
@@ -131,12 +140,59 @@ function App() {
       }
     };
     initApp();
-  }, []);
+  }, [databaseSecurity]);
+
+  useEffect(() => {
+    if (databaseSecurity !== "ready" || !currentUser) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let retryDelay = 30_000;
+
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void syncWhenOnline(); }, delay);
+    };
+    const syncWhenOnline = async () => {
+      if (stopped) return;
+      if (!navigator.onLine) {
+        schedule(60_000);
+        return;
+      }
+      try {
+        const [, , configured] = await invoke<[number, number, boolean]>("get_backup_sync_status");
+        if (!configured) {
+          schedule(5 * 60_000);
+          return;
+        }
+        const result = await invoke<{ pending: number; errors: string[] }>("sync_backups");
+        if (result.errors.length) throw new Error(result.errors.join("; "));
+        if (result.pending > 0) {
+          schedule(retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30 * 60_000);
+          return;
+        }
+        retryDelay = 30_000;
+        schedule(15 * 60_000);
+      } catch (error) {
+        console.warn("La sincronización de backups se reintentará:", error);
+        schedule(retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 30 * 60_000);
+      }
+    };
+    const onOnline = () => { void syncWhenOnline(); };
+    window.addEventListener("online", onOnline);
+    void syncWhenOnline();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [databaseSecurity, currentUser]);
 
   const checkCashStatus = async (user: UserInfo) => {
     if (user.role === ROLES.CASHIER) {
       try {
-        const openReg = await invoke<any | null>("get_open_register");
+        const openReg = await invoke<unknown>("get_open_register");
         setCashOpen(openReg !== null);
         setForceCash(true);
       } catch { setCashOpen(false); setForceCash(true); }
@@ -180,6 +236,28 @@ function App() {
   // ═══════════════════════════════════════════
   // RENDER GATES — Nuevo flujo
   // ═══════════════════════════════════════════
+
+  if (databaseSecurity !== "ready") {
+    if (databaseSecurity === null) {
+      return (
+        <div className="min-h-screen bg-surface flex items-center justify-center">
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+        </div>
+      );
+    }
+    return (
+      <DatabaseSecurityView
+        status={databaseSecurity}
+        onStatusChange={setDatabaseSecurity}
+        onReady={() => {
+          setDatabaseSecurity("ready");
+          setSetupComplete(null);
+          setLoadingSession(true);
+        }}
+      />
+    );
+  }
 
   // Loading
   if (setupComplete === null || loadingSession) {

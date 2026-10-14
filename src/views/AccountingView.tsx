@@ -39,6 +39,7 @@ export default function AccountingView() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga única al montar; loadData se recrea en cada render
   }, []);
 
   const loadData = async () => {

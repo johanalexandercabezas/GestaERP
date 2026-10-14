@@ -1,6 +1,76 @@
 use crate::auth_guard;
 use crate::AppState;
 use tauri::State;
+use zeroize::Zeroizing;
+
+#[tauri::command]
+pub fn get_database_security_state(
+    state: State<AppState>,
+) -> Result<crate::db::DatabaseSecurityState, String> {
+    if state.db.is_initialized()? {
+        return Ok(crate::db::DatabaseSecurityState {
+            status: "ready".to_string(),
+            recovery_phrase_required: false,
+        });
+    }
+    crate::db::database_security_state()
+}
+
+#[tauri::command]
+pub fn initialize_database_security(
+    state: State<AppState>,
+    recovery_phrase: String,
+) -> Result<(), String> {
+    let recovery_phrase = Zeroizing::new(recovery_phrase);
+    let connection = crate::db::secure_database(recovery_phrase.as_str())?;
+    state.db.initialize(connection)
+}
+
+#[tauri::command]
+pub fn recover_database_key(
+    state: State<AppState>,
+    recovery_phrase: String,
+    backup_path: Option<String>,
+) -> Result<(), String> {
+    let recovery_phrase = Zeroizing::new(recovery_phrase);
+    let connection = crate::db::recover_database(recovery_phrase.as_str(), backup_path.as_deref())?;
+    state.db.initialize(connection)
+}
+
+#[tauri::command]
+pub fn configure_backup_sync(
+    state: State<AppState>,
+    endpoint: String,
+    token: String,
+) -> Result<(), String> {
+    auth_guard::require_admin(&state)?;
+    let endpoint = endpoint.trim().trim_end_matches('/');
+    let parsed = reqwest::Url::parse(endpoint)
+        .map_err(|e| format!("La URL del servicio de backup no es válida: {e}"))?;
+    let local_http = parsed.scheme() == "http"
+        && parsed
+            .host_str()
+            .map(|host| matches!(host, "localhost" | "127.0.0.1" | "::1"))
+            .unwrap_or(false);
+    if (parsed.scheme() != "https" && !local_http)
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(
+            "El endpoint debe usar HTTPS (HTTP solo en localhost) y no puede incluir credenciales, consulta ni fragmento.".to_string(),
+        );
+    }
+    let token = Zeroizing::new(token);
+    if token.trim().len() < 16 {
+        return Err("El token de acceso debe contener al menos 16 caracteres.".to_string());
+    }
+    crate::db::store_backup_sync_token(token.trim())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::db::set_setting(&conn, "backup_sync_endpoint", endpoint)
+        .map_err(|e| format!("No se pudo guardar el endpoint de sincronización: {e}"))
+}
 
 #[tauri::command]
 pub fn is_setup_complete(state: State<AppState>) -> Result<bool, String> {

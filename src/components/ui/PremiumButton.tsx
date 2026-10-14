@@ -32,7 +32,7 @@ const PremiumButton = forwardRef<HTMLButtonElement, PremiumButtonProps>(
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
         disabled={disabled || loading}
         className={`inline-flex items-center justify-center gap-2 font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className || ""}`}
-        {...(props as any)}
+        {...(props as unknown as React.ComponentProps<typeof motion.button>)}
       >
         {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
         {children}

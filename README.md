@@ -17,7 +17,7 @@ Aplicación de escritorio **offline-first** para la gestión empresarial de pequ
 - 👥 **Empleados y Nómina** — liquidación, prestaciones, reportes
 - 🏭 **Kárdex / Inventario Físico** — movimientos, conteos, ajustes
 - 📈 **Reportes** de ventas exportables a CSV
-- 🔒 **Backups** locales con restauración
+- 🔒 **SQLCipher** local, recuperación portable y backups cifrados con cola de sincronización remota
 - 📅 **Calendario** de notas internas
 - 🔐 **Sistema de Licencias** por plan (Básico / Intermedio / Avanzado / ONG)
 - 🤖 **GestaHelp** — asistente digital interno (beta)
@@ -27,7 +27,7 @@ Aplicación de escritorio **offline-first** para la gestión empresarial de pequ
 | Capa | Tecnología |
 |---|---|
 | **Frontend** | React 19, TypeScript, Vite 7, Tailwind CSS 4, Framer Motion, Radix UI, Zustand, React Hook Form + Zod, Recharts |
-| **Backend** | Rust (Tauri 2), rusqlite (SQLite), Argon2id, HMAC-SHA256 |
+| **Backend** | Rust (Tauri 2), rusqlite + SQLCipher, Argon2id, HMAC-SHA256 |
 | **Build** | Vite + Tauri bundler (`.msi` / `.exe`) |
 | **CI/CD** | GitHub Actions — lint, tests, release automático, Tauri Updater |
 | **Desktop** | Windows 10/11 (x64), instalador `.msi` |
@@ -38,6 +38,7 @@ Aplicación de escritorio **offline-first** para la gestión empresarial de pequ
 - **Node.js** ≥ 22
 - **Rust** ≥ 1.80 (con `rustup`)
 - **Windows SDK** (Visual Studio Build Tools con C++)
+- **Strawberry Perl** en `PATH` (requerido por OpenSSL vendorizado de SQLCipher en Windows)
 
 ### Instalación para desarrollo
 
@@ -46,9 +47,8 @@ Aplicación de escritorio **offline-first** para la gestión empresarial de pequ
 git clone <repo-url>
 cd GestaERP
 
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con valores aleatorios seguros
+# 2. Configurar la clave de firma de licencias en .env
+#    La frase de recuperación de SQLCipher se define al iniciar la aplicación
 
 # 3. Instalar dependencias frontend
 npm install
@@ -65,11 +65,14 @@ npm run tauri build
 | Variable | Propósito | Longitud mínima |
 |---|---|---|
 | `GESTAERP_SECRET_KEY` | Clave maestra para firmar licencias | 32 caracteres |
-| `GESTAERP_DB_PEPPER` | Pepper para derivar clave de BD por máquina | 20 caracteres |
 | `GESTAERP_ENV` | `development` o `production` | — |
 | `GESTAERP_LOG_LEVEL` | `trace`, `debug`, `info`, `warn`, `error` | — |
 
-**⚠️ Sin estas variables la aplicación aborta al iniciar.** Genera valores aleatorios seguros, no uses palabras comunes.
+`GESTAERP_SECRET_KEY` es obligatoria; las otras variables tienen valores por defecto. La clave SQLCipher se deriva de la frase de recuperación y se almacena en el almacén seguro del sistema operativo. Guarda la frase fuera del equipo: no es recuperable si se pierde.
+
+Los backups `.gbackup` contienen una instantánea SQLCipher más la sal de recuperación; el servidor remoto recibe únicamente el artefacto cifrado. La API configurable del servidor debe implementar `POST /v1/backups`, `GET /v1/backups` y `GET /v1/backups/{filename}` con Bearer auth e idempotencia por nombre de archivo.
+
+Los backups `.db` creados por versiones anteriores pueden estar en texto plano; la pantalla los marca como **SIN CIFRAR** y no permite exportarlos ni restaurarlos. Verifica un `.gbackup` nuevo antes de eliminar cualquier archivo histórico.
 
 ## 🏗️ Arquitectura
 

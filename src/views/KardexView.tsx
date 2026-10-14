@@ -41,6 +41,7 @@ export default function KardexView() {
 
   useEffect(() => {
     loadMovements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga única al montar; loadMovements se recrea en cada render
   }, []);
 
   const loadMovements = async () => {
