@@ -71,18 +71,15 @@ jobs:
         env:
           SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           PRODUCTION_SECRET: ${{ secrets.GESTAERP_PRODUCTION_SECRET }}
-          PRODUCTION_PEPPER: ${{ secrets.GESTAERP_PRODUCTION_PEPPER }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:SIGNING_KEY)) { throw "Falta el secreto TAURI_SIGNING_PRIVATE_KEY." }
           if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_SECRET)) { throw "Falta el secreto GESTAERP_PRODUCTION_SECRET." }
-          if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_PEPPER)) { throw "Falta el secreto GESTAERP_PRODUCTION_PEPPER." }
 
       - name: Compilar instaladores Windows firmados
         run: npm run tauri -- build --bundles nsis
         env:
           GESTAERP_ENV: production
           GESTAERP_SECRET_KEY: ${{ secrets.GESTAERP_PRODUCTION_SECRET }}
-          GESTAERP_DB_PEPPER: ${{ secrets.GESTAERP_PRODUCTION_PEPPER }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 

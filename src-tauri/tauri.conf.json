@@ -1,6 +1,6 @@
 {
   "productName": "GestaERP",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "identifier": "com.gestasofttech.erp",
   "build": {
     "frontendDist": "../dist",
@@ -22,7 +22,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDQkUxNTg3NTdBMEM1Q0MKUldUTXhhQlhoeFcrYkRTN1FaRzZnOGN6eTNMZExYbEVzMXUrNnNYRFR6dXpOZHJuNG9CRmF4NnUK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDRDMwMzVBNUFBQTI1QTAKUldTZ0phcGFXZ1BUTEJCNjZaNDM1ZW1ydlpQL2xXNkp5eGJhQ29yeGJ4M21SeFBDa1ZIRkVGV3UK",
       "endpoints": [
         "https://github.com/johanalexandercabezas/GestaERP/releases/latest/download/latest.json"
       ],

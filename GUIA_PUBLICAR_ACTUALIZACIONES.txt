@@ -18,22 +18,19 @@ En el repositorio GestaERP, abre:
 
 Configura:
    TAURI_SIGNING_PRIVATE_KEY
-      Clave privada Minisign que corresponde a la clave pública de
-      src-tauri\tauri.conf.json. No se debe subir al repositorio.
-
-   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-      Contraseña de la clave privada, si se generó con una. Si no tiene
-      contraseña, puede dejarse vacía.
+      Copia todo el contenido del archivo privado
+      %USERPROFILE%\.tauri\gestaerp.key. No uses el archivo .pub.
+      Esta clave no tiene contraseña; no configures
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
 
    GESTAERP_PRODUCTION_SECRET
-      Secreto de producción requerido por la compilación de GestaERP.
-
-   GESTAERP_PRODUCTION_PEPPER
-      Pepper de producción requerido por la compilación de GestaERP.
+      Usa el valor que ya está después de GESTAERP_SECRET_KEY= en el archivo
+      .env local de la raíz del proyecto. No copies el nombre ni el signo =.
 
 Nunca publiques, pegues en chats ni registres en logs la clave privada o los
 secretos. No generes una nueva pareja de claves para cada versión: los clientes
-instalados con la clave pública actual rechazarían las nuevas firmas.
+instalados con la clave pública actual rechazarían las nuevas firmas. El flujo
+de publicación solo necesita estos dos secretos.
 
 PUBLICAR UNA NUEVA VERSION
 --------------------------
@@ -116,6 +113,10 @@ LIMITES
   johanalexandercabezas/GestaERP. Para hacer la transición, instala manualmente
   una vez el nuevo instalador de la primera Release; las versiones compiladas con
   el endpoint nuevo podrán actualizarse automáticamente después.
+- El tag v1.0.2 no pudo publicarse porque faltaban los secretos de firma. La clave
+  de firma se regeneró y la versión siguiente debe usar la nueva clave pública;
+  por eso no vuelvas a ejecutar v1.0.2. La primera Release con esta clave será
+  v1.0.3.
 - Las pruebas locales de manifest comprueban forma, versiones, URL y presencia
   de firma; no reemplazan el build y la validación criptográfica de una Release.
 - Publicar una Release y probar la actualización en un cliente requieren los
