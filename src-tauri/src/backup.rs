@@ -4,7 +4,7 @@ use serde::Serialize;
 use sha2::Digest;
 use std::fs;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const BACKUP_MAGIC: &[u8; 8] = b"GEBACK01";
 const BACKUP_HEADER_LEN: u64 = 24;
@@ -17,6 +17,73 @@ pub struct BackupInfo {
     pub encrypted: bool,
 }
 
+#[derive(Serialize)]
+pub struct RecoveryBackupCatalog {
+    pub directory: String,
+    pub backups: Vec<BackupInfo>,
+}
+
+pub fn list_recovery_backups() -> Result<Vec<BackupInfo>, String> {
+    let mut backups = Vec::new();
+    for directory in backup_directories() {
+        if !directory.exists() {
+            continue;
+        }
+        let entries = fs::read_dir(&directory)
+            .map_err(|e| format!("No se pudo leer la carpeta de backups: {e}"))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|e| format!("No se pudo leer una entrada de backup: {e}"))?
+                .path();
+            if !path.is_file()
+                || path.extension().and_then(|extension| extension.to_str()) != Some("gbackup")
+                || validate_portable_backup(&path).is_err()
+            {
+                continue;
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("No se pudieron leer metadatos del backup: {e}"))?;
+            let created = metadata
+                .modified()
+                .map(|time| {
+                    let datetime: chrono::DateTime<Local> = time.into();
+                    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                })
+                .unwrap_or_else(|_| "Desconocido".to_string());
+            backups.push(BackupInfo {
+                filename: path
+                    .file_name()
+                    .ok_or_else(|| "Nombre de backup no válido.".to_string())?
+                    .to_string_lossy()
+                    .into_owned(),
+                created,
+                size: metadata.len(),
+                encrypted: true,
+            });
+        }
+    }
+    backups.sort_by(|a, b| {
+        b.created
+            .cmp(&a.created)
+            .then_with(|| a.filename.cmp(&b.filename))
+    });
+    backups.dedup_by(|a, b| a.filename == b.filename);
+    Ok(backups)
+}
+
+pub fn recovery_backup_catalog() -> Result<RecoveryBackupCatalog, String> {
+    Ok(RecoveryBackupCatalog {
+        directory: recovery_backup_directory(),
+        backups: list_recovery_backups()?,
+    })
+}
+
+pub fn recovery_backup_path(filename: &str) -> Result<PathBuf, String> {
+    let path = resolve_backup_path(filename)?;
+    validate_portable_backup(&path)?;
+    Ok(path)
+}
+
 #[cfg(test)]
 fn db_path() -> String {
     let mut path = std::env::current_dir().unwrap();
@@ -25,12 +92,49 @@ fn db_path() -> String {
 }
 
 #[cfg(not(test))]
-fn backups_dir() -> String {
+fn backup_root_dir() -> PathBuf {
     dirs::data_dir()
-        .map(|p| p.join("GestaERP").join("backups"))
-        .unwrap_or_else(|| std::path::PathBuf::from("backups"))
-        .to_string_lossy()
-        .to_string()
+        .map(|path| path.join("GestaERP"))
+        .unwrap_or_else(|| PathBuf::from("GestaERP"))
+}
+
+#[cfg(test)]
+fn backup_root_dir() -> PathBuf {
+    PathBuf::from(backups_dir())
+}
+
+fn legacy_backups_dir() -> Option<PathBuf> {
+    #[cfg(not(test))]
+    {
+        Some(backup_root_dir().join("backups"))
+    }
+    #[cfg(test)]
+    {
+        None
+    }
+}
+
+fn backup_directories() -> Vec<PathBuf> {
+    let mut directories = vec![backup_root_dir()];
+    if let Some(legacy) = legacy_backups_dir() {
+        directories.push(legacy);
+    }
+    directories
+}
+
+fn resolve_backup_path(filename: &str) -> Result<PathBuf, String> {
+    validate_backup_filename(filename)?;
+    for directory in backup_directories() {
+        let candidate = directory.join(filename);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    Err("El archivo de backup no existe en la carpeta de datos de GestaERP.".to_string())
+}
+
+pub fn recovery_backup_directory() -> String {
+    backup_root_dir().to_string_lossy().into_owned()
 }
 
 /// P0-05 FIX: Valida que un nombre de archivo no contenga path traversal.
@@ -103,7 +207,10 @@ pub fn backup_file_path(filename: &str) -> Result<std::path::PathBuf, String> {
     {
         return Err("El nombre no corresponde a un backup cifrado .gbackup.".to_string());
     }
-    Ok(Path::new(&backups_dir()).join(filename))
+    match resolve_backup_path(filename) {
+        Ok(path) => Ok(path),
+        Err(_) => Ok(backup_root_dir().join(filename)),
+    }
 }
 
 pub fn validate_portable_backup(path: &Path) -> std::result::Result<(), String> {
@@ -136,9 +243,8 @@ fn create_backup_with_material(
 ) -> Result<BackupInfo, String> {
     eprintln!("[BACKUP] Iniciando creación de backup...");
 
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    fs::create_dir_all(dir).map_err(|e| {
+    let dir = backup_root_dir();
+    fs::create_dir_all(&dir).map_err(|e| {
         eprintln!("[BACKUP] Error al crear carpeta: {}", e);
         format!("No se pudo crear la carpeta de backups: {}", e)
     })?;
@@ -218,50 +324,51 @@ fn create_backup_with_material(
 
 pub fn list_backups() -> Result<Vec<BackupInfo>, String> {
     eprintln!("[BACKUP] Listando backups...");
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
+    let dir = backup_root_dir();
     if !dir.exists() {
-        fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear carpeta: {}", e))?;
-        return Ok(Vec::new());
+        fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear carpeta: {}", e))?;
     }
 
     let mut backups = Vec::new();
-    let entries =
-        fs::read_dir(dir).map_err(|e| format!("No se pudo leer la carpeta de backups: {}", e))?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Error al leer entrada: {}", e))?;
-        let path = entry.path();
-        if path.is_file()
-            && path
-                .extension()
-                .map(|extension| extension == "gbackup" || extension == "db")
-                .unwrap_or(false)
-        {
-            let encrypted = path
-                .extension()
-                .map(|extension| extension == "gbackup")
-                .unwrap_or(false);
-            let metadata = fs::metadata(&path).ok();
+    for (index, directory) in backup_directories().into_iter().enumerate() {
+        if !directory.exists() {
+            continue;
+        }
+        let entries = fs::read_dir(&directory)
+            .map_err(|e| format!("No se pudo leer la carpeta de backups: {e}"))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|e| format!("Error al leer entrada de backup: {e}"))?
+                .path();
+            let extension = path.extension().and_then(|extension| extension.to_str());
+            let is_legacy_plaintext = index > 0 && extension == Some("db");
+            if !path.is_file() || (extension != Some("gbackup") && !is_legacy_plaintext) {
+                continue;
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("No se pudieron leer metadatos de backup: {e}"))?;
             let created = metadata
-                .as_ref()
-                .and_then(|m| m.modified().ok())
-                .map(|t| {
-                    let datetime: chrono::DateTime<Local> = t.into();
+                .modified()
+                .map(|time| {
+                    let datetime: chrono::DateTime<Local> = time.into();
                     datetime.format("%Y-%m-%d %H:%M:%S").to_string()
                 })
-                .unwrap_or_else(|| "Desconocido".to_string());
-            let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                .unwrap_or_else(|_| "Desconocido".to_string());
             backups.push(BackupInfo {
-                filename: path.file_name().unwrap().to_string_lossy().to_string(),
+                filename: path
+                    .file_name()
+                    .ok_or_else(|| "Nombre de archivo de backup inválido.".to_string())?
+                    .to_string_lossy()
+                    .into_owned(),
                 created,
-                size,
-                encrypted,
+                size: metadata.len(),
+                encrypted: extension == Some("gbackup"),
             });
         }
     }
 
     backups.sort_by(|a, b| b.filename.cmp(&a.filename));
+    backups.dedup_by(|a, b| a.filename == b.filename);
     eprintln!("[BACKUP] {} backups encontrados", backups.len());
     Ok(backups)
 }
@@ -279,12 +386,7 @@ fn restore_backup_with_material(
 ) -> Result<(), String> {
     validate_backup_filename(filename)?;
     eprintln!("[BACKUP] Restaurando backup: {}", filename);
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    let src = dir.join(filename);
-    if !src.exists() {
-        return Err("El archivo de backup no existe.".to_string());
-    }
+    let src = resolve_backup_path(filename)?;
 
     let mut file = fs::File::open(&src)
         .map_err(|e| format!("No se pudo abrir el backup seleccionado: {e}"))?;
@@ -431,12 +533,7 @@ fn restore_snapshot(
 pub fn delete_backup(filename: &str) -> Result<(), String> {
     validate_backup_filename(filename)?;
     eprintln!("[BACKUP] Eliminando backup: {}", filename);
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    let path = dir.join(filename);
-    if !path.exists() {
-        return Err("El archivo de backup no existe.".to_string());
-    }
+    let path = resolve_backup_path(filename)?;
     fs::remove_file(&path).map_err(|e| format!("Error al eliminar backup: {}", e))?;
     Ok(())
 }
@@ -459,9 +556,7 @@ pub fn export_backup_to_path(filename: &str, dest_path: &str) -> Result<BackupIn
         );
     }
 
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    let src = dir.join(filename);
+    let src = resolve_backup_path(filename)?;
     let dest = Path::new(dest_path).join(filename);
 
     fs::copy(&src, &dest).map_err(|e| format!("Error al exportar backup: {}", e))?;
@@ -505,15 +600,32 @@ pub fn import_backup_from_path(source_path: &str) -> Result<BackupInfo, String> 
         return Err("El archivo no tiene el formato cifrado de backup GestaERP.".to_string());
     }
 
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear carpeta de backups: {}", e))?;
+    let dir = backup_root_dir();
+    fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear carpeta de backups: {e}"))?;
     let dest = dir.join(&filename);
+    if dest.exists() {
+        return Err("Ya existe un backup con ese nombre en la carpeta de datos.".to_string());
+    }
 
     let temp = dir.join(format!(".{}.{}.tmp", filename, std::process::id()));
-    fs::copy(src, &temp).map_err(|e| format!("Error al copiar el backup cifrado: {}", e))?;
-    fs::rename(&temp, &dest)
-        .map_err(|e| format!("Error al publicar el backup importado: {}", e))?;
+    let import_result = (|| {
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+            .map_err(|e| format!("No se pudo crear el archivo temporal de importación: {e}"))?;
+        std::io::copy(&mut source, &mut output)
+            .map_err(|e| format!("Error al copiar el backup cifrado: {e}"))?;
+        output
+            .sync_all()
+            .map_err(|e| format!("No se pudo sincronizar el backup importado: {e}"))?;
+        drop(output);
+        fs::rename(&temp, &dest).map_err(|e| format!("Error al publicar el backup importado: {e}"))
+    })();
+    if let Err(error) = import_result {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
 
     let metadata = fs::metadata(&dest).map_err(|e| format!("Error al leer metadatos: {}", e))?;
 
@@ -527,11 +639,10 @@ pub fn import_backup_from_path(source_path: &str) -> Result<BackupInfo, String> 
 
 /// Abre la carpeta de backups en el explorador de archivos
 pub fn open_backups_folder() -> Result<(), String> {
-    let dir_str = backups_dir();
-    let dir = Path::new(&dir_str);
-    fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear carpeta: {}", e))?;
+    let dir = backup_root_dir();
+    fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear carpeta: {e}"))?;
 
-    open::that(dir).map_err(|e| format!("No se pudo abrir la carpeta: {}", e))?;
+    open::that(&dir).map_err(|e| format!("No se pudo abrir la carpeta: {}", e))?;
     Ok(())
 }
 
@@ -608,6 +719,19 @@ mod tests {
         let list = list_backups().unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].filename, backup_info.filename);
+        let recovery_backups = list_recovery_backups().unwrap();
+        assert_eq!(recovery_backups.len(), 1);
+        assert_eq!(recovery_backups[0].filename, backup_info.filename);
+        assert_eq!(
+            recovery_backup_path(&backup_info.filename).unwrap(),
+            backup_root_dir().join(&backup_info.filename)
+        );
+        assert!(import_backup_from_path(
+            &backup_root_dir()
+                .join(&backup_info.filename)
+                .to_string_lossy()
+        )
+        .is_err());
 
         // Restore the snapshot into the live connection without replacing its open file.
         connection

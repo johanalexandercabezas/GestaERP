@@ -1,0 +1,123 @@
+GESTAERP - GUIA PARA PUBLICAR ACTUALIZACIONES
+=============================================
+
+FUNCIONAMIENTO
+--------------
+El repositorio público johanalexandercabezas/GestaERP aloja el código fuente y
+las Releases. GitHub Actions compila el instalador Windows x64 (NSIS), lo firma
+para Tauri Updater y publica el instalador, su firma .sig y latest.json.
+
+GestaERP consulta latest.json al iniciar (después de iniciar sesión) y cada seis
+horas. La descarga e instalación requieren confirmación del usuario. La firma
+criptográfica se valida con la clave pública integrada en la aplicación.
+
+CONFIGURACION INICIAL DE GITHUB (UNA SOLA VEZ)
+----------------------------------------------
+En el repositorio GestaERP, abre:
+   Settings > Secrets and variables > Actions > New repository secret
+
+Configura:
+   TAURI_SIGNING_PRIVATE_KEY
+      Clave privada Minisign que corresponde a la clave pública de
+      src-tauri\tauri.conf.json. No se debe subir al repositorio.
+
+   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+      Contraseña de la clave privada, si se generó con una. Si no tiene
+      contraseña, puede dejarse vacía.
+
+   GESTAERP_PRODUCTION_SECRET
+      Secreto de producción requerido por la compilación de GestaERP.
+
+   GESTAERP_PRODUCTION_PEPPER
+      Pepper de producción requerido por la compilación de GestaERP.
+
+Nunca publiques, pegues en chats ni registres en logs la clave privada o los
+secretos. No generes una nueva pareja de claves para cada versión: los clientes
+instalados con la clave pública actual rechazarían las nuevas firmas.
+
+PUBLICAR UNA NUEVA VERSION
+--------------------------
+1. Asegúrate de estar en la rama principal actualizada y termina los cambios.
+2. Aumenta una sola vez la versión apropiada desde la raíz del repositorio:
+      npm.cmd run bump:patch
+   o:
+      npm.cmd run bump:minor
+      npm.cmd run bump:major
+   Esto sincroniza package.json, package-lock.json, tauri.conf.json, Cargo.toml
+   y Cargo.lock. Revisa el resultado y no ejecutes otro bump para esta misma
+   versión.
+3. Valida antes de publicar:
+      npm.cmd run test:updater
+      npm.cmd test
+      npm.cmd run lint
+      npm.cmd run build
+      cargo fmt --manifest-path src-tauri\Cargo.toml -- --check
+      cargo check --manifest-path src-tauri\Cargo.toml
+4. Inspecciona los cambios, confirma que no incluyan claves ni secretos y crea
+   el commit:
+      git status
+      git diff --check
+      git add -A
+      git commit -m "release: vX.Y.Z"
+   Sustituye X.Y.Z por la versión resultante del bump.
+5. Envía el commit y tag exacto al repositorio:
+      git push origin main
+      git tag vX.Y.Z
+      git push origin vX.Y.Z
+   Si tu rama principal no se llama main, usa su nombre. El tag debe apuntar al
+   commit que ya contiene esa misma versión.
+6. El envío del tag inicia automáticamente la acción "Release GestaERP".
+   Alternativamente, en Actions > Release GestaERP > Run workflow, introduce un
+   tag existente. No ejecutes el flujo con una versión que no corresponda al tag.
+7. Espera que terminen los trabajos build-windows y publish-release. Si falla,
+   abre el paso señalado en Actions, corrige la causa y vuelve a ejecutar el
+   workflow sobre el mismo tag. No subas instaladores sin firmar manualmente.
+
+La acción comprueba que el repositorio sea público, valida que el tag coincida
+con todas las versiones, requiere secretos, compila y comprueba que el instalador
+NSIS tenga su firma. Se compila solo NSIS: el workflow de v1.0.1 falló al
+generar el paquete MSI de WiX ("Couldn't find a .ico icon"), aunque el instalador
+que se distribuye por updater es NSIS. Genera notas de publicación desde GitHub y
+las incorpora a latest.json. La Release se marca como la más reciente.
+
+COMPROBAR RELEASE Y ACTUALIZADOR
+--------------------------------
+En GitHub > Releases, confirma que la versión esté publicada como Latest y tenga:
+   - El instalador GestaERP_*_x64-setup.exe.
+   - Su firma correspondiente GestaERP_*_x64-setup.exe.sig.
+   - latest.json.
+
+Abre este enlace en una ventana privada, sin iniciar sesión:
+   https://github.com/johanalexandercabezas/GestaERP/releases/latest/download/latest.json
+
+Debe devolver JSON con la versión nueva, notas, URL de descarga de la Release y
+firma del instalador. Si no hay ninguna Release publicada aún, es normal que el
+enlace responda 404: primero publica la versión inicial siguiendo estos pasos.
+
+PRUEBA EN UN CLIENTE
+--------------------
+1. Instala una versión de GestaERP anterior a la Release publicada. La versión
+   de la Release tiene que ser mayor.
+2. Abre la aplicación e inicia sesión con conexión a internet.
+3. Cuando aparezca "Actualización disponible", revisa la versión y las notas.
+4. Pulsa "Instalar y reiniciar" y espera a que Windows termine el proceso.
+5. Comprueba que GestaERP inicia, que tus datos siguen presentes y que "Acerca
+   de" muestra la nueva versión.
+6. Usa "Buscar actualizaciones" en Acerca de; debe confirmar que está actualizado.
+   Si no hay internet, el ERP sigue funcionando offline y el chequeo automático
+   no bloquea el trabajo.
+
+LIMITES
+-------
+- El workflow actual publica instaladores Windows x64. No publica macOS/Linux.
+- La versión 1.0.1 previamente publicada en GitHub quedó compilada con el endpoint
+  antiguo GestaSoftTech/GestaERP, que actualmente devuelve 404. Por eso esa
+  instalación no puede recibir automáticamente la primera actualización desde
+  johanalexandercabezas/GestaERP. Para hacer la transición, instala manualmente
+  una vez el nuevo instalador de la primera Release; las versiones compiladas con
+  el endpoint nuevo podrán actualizarse automáticamente después.
+- Las pruebas locales de manifest comprueban forma, versiones, URL y presencia
+  de firma; no reemplazan el build y la validación criptográfica de una Release.
+- Publicar una Release y probar la actualización en un cliente requieren los
+  secretos de Actions y un tag nuevo. No se crea una Release automáticamente
+  al modificar los archivos de configuración.

@@ -4,11 +4,12 @@ import { showToast } from "../components/ui/PremiumToast";
 import PremiumButton from "../components/ui/PremiumButton";
 import PremiumModal from "../components/ui/PremiumModal";
 import { motion } from "framer-motion";
-import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Heart, ExternalLink, ClipboardCheck, Sparkles } from "lucide-react";
+import { Shield, Check, Zap, Building2, Star, Crown, Clock, AlertTriangle, Heart, ExternalLink, ClipboardCheck, Sparkles, ArrowLeft } from "lucide-react";
 import type { LicenseInfo } from "../types/auth";
 
 interface Props {
   onActivated: () => void;
+  onBack?: () => void;
 }
 
 interface ImplementationStatus {
@@ -127,7 +128,7 @@ function LicenseStatusCard({ license }: { license: LicenseInfo }) {
 // VISTA PRINCIPAL
 // ═══════════════════════════════════════════
 
-export default function LicenseActivationView({ onActivated }: Props) {
+export default function LicenseActivationView({ onActivated, onBack }: Props) {
   const [currentLicense, setCurrentLicense] = useState<LicenseInfo | null>(null);
   const [loadingLicense, setLoadingLicense] = useState(true);
   const [activeTab, setActiveTab] = useState<"ong" | "corporativo">("corporativo");
@@ -240,6 +241,18 @@ export default function LicenseActivationView({ onActivated }: Props) {
   return (
     <div className="min-h-screen bg-surface overflow-auto">
       <div className="max-w-5xl mx-auto p-6">
+        {onBack && (
+          <div className="mb-5">
+            <PremiumButton
+              variant="ghost"
+              onClick={onBack}
+              icon={<ArrowLeft size={16} />}
+              aria-label="Volver al ERP"
+            >
+              Volver
+            </PremiumButton>
+          </div>
+        )}
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-linear-to-br from-accent to-purple-600 flex items-center justify-center">
@@ -492,7 +505,7 @@ export default function LicenseActivationView({ onActivated }: Props) {
 
         {/* Version info */}
         <div className="mt-12 text-center text-xs text-secondary border-t border-theme pt-4">
-          GestaERP V 1.0.0 © 2026 — GestaSoftTech<br />
+          GestaERP © 2026 — GestaSoftTech<br />
           CEO Johan Alexander Cabezas Huila — Todos los derechos reservados
         </div>
       </div>

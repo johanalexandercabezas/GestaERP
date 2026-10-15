@@ -537,17 +537,17 @@ pub fn secure_database(recovery_phrase: &str) -> std::result::Result<Connection,
 
 pub fn recover_database(
     recovery_phrase: &str,
-    backup_path: Option<&str>,
+    backup_filename: Option<&str>,
 ) -> std::result::Result<Connection, String> {
     let (database_path, metadata_path) = database_paths()?;
     if !database_path.exists() {
-        let backup_path = backup_path.ok_or_else(|| {
+        let backup_filename = backup_filename.ok_or_else(|| {
             "No existe una base de datos; proporciona un backup .gbackup para restaurar."
                 .to_string()
         })?;
-        let backup_path = Path::new(backup_path);
+        let backup_path = crate::backup::recovery_backup_path(backup_filename)?;
         let temp_path = database_path.with_extension(format!("restore.{}.tmp", std::process::id()));
-        let salt = crate::backup::extract_encrypted_snapshot(backup_path, &temp_path)?;
+        let salt = crate::backup::extract_encrypted_snapshot(&backup_path, &temp_path)?;
         let key = Zeroizing::new(crate::crypto::derive_recovery_key(recovery_phrase, &salt)?);
         let result = (|| {
             let conn = open_cipher_database(&temp_path, key.as_str())
@@ -576,7 +576,7 @@ pub fn recover_database(
         }
         return result;
     }
-    if backup_path.is_some() {
+    if backup_filename.is_some() {
         return Err("La base ya existe; no se permite restaurar un backup sobre una base existente desde la pantalla de recuperación.".to_string());
     }
     let metadata = read_security_metadata(&metadata_path)?;
@@ -1219,6 +1219,21 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             "Schema evolution + timestamps + soft-delete + multi-tenancy (v2.2)",
             MIGRATION_008_SCHEMA_EVOLUTION,
         ),
+        (
+            9,
+            "Preguntas de recuperación local para administradores",
+            MIGRATION_009_PASSWORD_RECOVERY,
+        ),
+        (
+            10,
+            "Registro versionado de aceptación de términos y aviso de privacidad",
+            MIGRATION_010_LEGAL_ACCEPTANCES,
+        ),
+        (
+            11,
+            "Trazabilidad versionada de bases de tratamiento por titular",
+            MIGRATION_011_PERSONAL_DATA_RECORDS,
+        ),
     ];
 
     for (version, description, sql) in &migrations {
@@ -1375,6 +1390,53 @@ ALTER TABLE payables ADD COLUMN empresa_id INTEGER DEFAULT 1;
 ALTER TABLE quotations ADD COLUMN empresa_id INTEGER DEFAULT 1;
 ALTER TABLE physical_counts ADD COLUMN empresa_id INTEGER DEFAULT 1;
 ALTER TABLE inventory_movements ADD COLUMN empresa_id INTEGER DEFAULT 1;
+"#;
+
+const MIGRATION_009_PASSWORD_RECOVERY: &str = r#"
+CREATE TABLE IF NOT EXISTS password_recovery_answers (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question_id TEXT NOT NULL,
+    answer_hash TEXT NOT NULL,
+    PRIMARY KEY (user_id, question_id)
+);
+CREATE TABLE IF NOT EXISTS password_recovery_attempts (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    window_started_at INTEGER NOT NULL,
+    blocked_until INTEGER
+);
+"#;
+
+const MIGRATION_010_LEGAL_ACCEPTANCES: &str = r#"
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_type TEXT NOT NULL CHECK (document_type IN ('terms', 'privacy_notice')),
+    document_version TEXT NOT NULL,
+    accepted_at TEXT NOT NULL,
+    app_version TEXT NOT NULL,
+    acceptance_method TEXT NOT NULL CHECK (acceptance_method = 'desktop_checkbox')
+);
+CREATE INDEX IF NOT EXISTS idx_legal_acceptances_document_version
+    ON legal_acceptances (document_type, document_version);
+"#;
+
+const MIGRATION_011_PERSONAL_DATA_RECORDS: &str = r#"
+CREATE TABLE IF NOT EXISTS personal_data_processing_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_type TEXT NOT NULL CHECK (subject_type IN ('customer', 'supplier', 'employee')),
+    subject_id INTEGER NOT NULL,
+    basis TEXT NOT NULL CHECK (basis IN ('authorization', 'legal_exception', 'not_personal_data')),
+    basis_detail TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL,
+    effective_date TEXT NOT NULL,
+    evidence_method TEXT NOT NULL,
+    evidence_reference TEXT NOT NULL DEFAULT '',
+    recorded_at TEXT NOT NULL,
+    recorded_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    recorded_by_name TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_personal_data_records_subject
+    ON personal_data_processing_records (subject_type, subject_id, id DESC);
 "#;
 
 pub fn init_db() -> Result<Connection> {
@@ -1566,6 +1628,75 @@ CREATE INDEX IF NOT EXISTS idx_physical_counts_status ON physical_counts(status)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn password_recovery_migration_creates_answer_and_attempt_tables() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE users (id INTEGER PRIMARY KEY);")
+            .unwrap();
+        execute_migration_batch(&conn, MIGRATION_009_PASSWORD_RECOVERY).unwrap();
+        let table_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema
+                 WHERE type = 'table' AND name IN (
+                    'password_recovery_answers',
+                    'password_recovery_attempts'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_count, 2);
+    }
+
+    #[test]
+    fn legal_acceptance_migration_creates_versioned_receipt_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        execute_migration_batch(&conn, MIGRATION_010_LEGAL_ACCEPTANCES).unwrap();
+        let columns: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('legal_acceptances')
+                 WHERE name IN (
+                    'document_type',
+                    'document_version',
+                    'accepted_at',
+                    'app_version',
+                    'acceptance_method'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(columns, 5);
+    }
+
+    #[test]
+    fn personal_data_migration_creates_indexed_subject_history() {
+        let conn = Connection::open_in_memory().unwrap();
+        execute_migration_batch(&conn, MIGRATION_011_PERSONAL_DATA_RECORDS).unwrap();
+
+        let column_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('personal_data_processing_records')
+                 WHERE name IN ('subject_type', 'subject_id', 'basis', 'purpose',
+                    'effective_date', 'evidence_method', 'evidence_reference',
+                    'recorded_at', 'recorded_by_user_id', 'recorded_by_name')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(column_count, 10);
+
+        let index_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'index' AND name = 'idx_personal_data_records_subject'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(index_exists, 1);
+    }
 
     #[test]
     fn security_metadata_mac_detects_salt_tampering() {

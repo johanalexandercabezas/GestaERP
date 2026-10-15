@@ -4,6 +4,12 @@ import { motion } from "framer-motion";
 import PremiumModal from "../components/ui/PremiumModal";
 import PremiumSelect from "../components/ui/PremiumSelect";
 import { showToast } from "../components/ui/PremiumToast";
+import PersonalDataBasisFields from "../components/PersonalDataBasisFields";
+import {
+  emptyProcessingBasis,
+  type ProcessingBasisInput,
+  type ProcessingBasisRecord,
+} from "../types/personalData";
 
 interface Employee {
   id: number;
@@ -28,6 +34,7 @@ interface Employee {
   ccf: string | null;
   fondo_cesantias: string | null;
   active: boolean;
+  processing_basis: ProcessingBasisRecord | null;
 }
 
 const SMMLV = 1_750_905.0;
@@ -86,6 +93,8 @@ export default function EmployeesView() {
   const [ccf, setCcf] = useState("");
   const [fondo_cesantias, setFondo_cesantias] = useState("");
   const [active, setActive] = useState(true);
+  const [processingBasis, setProcessingBasis] =
+    useState<ProcessingBasisInput>(emptyProcessingBasis);
   const [error, setError] = useState("");
 
   const load = async () => {
@@ -104,6 +113,7 @@ export default function EmployeesView() {
     setRiskLevel("I"); setPhone(""); setEmail(""); setCity(""); setDepartment("");
     setAddress(""); setHireDate(""); setEps(""); setArl(""); setAfp(""); setCcf("");
     setFondo_cesantias(""); setActive(true); setError(""); setEditing(null);
+    setProcessingBasis(emptyProcessingBasis());
   };
 
   const openNew = () => { resetForm(); setShowForm(true); };
@@ -117,6 +127,18 @@ export default function EmployeesView() {
     setCity(e.city || ""); setDepartment(e.department || ""); setAddress(e.address || "");
     setHireDate(e.hire_date || ""); setEps(e.eps || ""); setArl(e.arl || ""); setAfp(e.afp || "");
     setCcf(e.ccf || ""); setFondo_cesantias(e.fondo_cesantias || ""); setActive(e.active);
+    setProcessingBasis(
+      e.processing_basis
+        ? {
+            basis: e.processing_basis.basis,
+            basisDetail: e.processing_basis.basisDetail,
+            purpose: e.processing_basis.purpose,
+            effectiveDate: e.processing_basis.effectiveDate,
+            evidenceMethod: e.processing_basis.evidenceMethod,
+            evidenceReference: e.processing_basis.evidenceReference,
+          }
+        : emptyProcessingBasis(),
+    );
     setShowForm(true);
   };
 
@@ -158,6 +180,7 @@ export default function EmployeesView() {
           department: department.toUpperCase(), address: address.toUpperCase(),
           hireDate, eps: eps.toUpperCase(), arl: arl.toUpperCase(), afp: afp.toUpperCase(),
           ccf: ccf.toUpperCase(), fondo_cesantias: fondo_cesantias.toUpperCase(), active,
+          processingBasis,
         });
       } else {
         await invoke("create_employee", {
@@ -168,6 +191,7 @@ export default function EmployeesView() {
           department: department.toUpperCase(), address: address.toUpperCase(),
           hireDate, eps: eps.toUpperCase(), arl: arl.toUpperCase(), afp: afp.toUpperCase(),
           ccf: ccf.toUpperCase(), fondo_cesantias: fondo_cesantias.toUpperCase(),
+          processingBasis,
         });
       }
       showToast(editing ? "EMPLEADO ACTUALIZADO" : "EMPLEADO CREADO", "success");
@@ -198,7 +222,7 @@ export default function EmployeesView() {
               <th className="p-3">Nombre</th><th className="p-3">Documento</th><th className="p-3">Cargo</th>
               <th className="p-3">Salario</th><th className="p-3">Frecuencia</th><th className="p-3">EPS</th>
               <th className="p-3">ARL</th><th className="p-3">AFP</th><th className="p-3">CCF</th>
-              <th className="p-3">Fondo Cesantías</th><th className="p-3">Activo</th><th className="p-3">Acciones</th>
+              <th className="p-3">Fondo Cesantías</th><th className="p-3">Activo</th><th className="p-3">Trazabilidad</th><th className="p-3">Acciones</th>
             </tr>
           </thead>
           <tbody className="text-sm">
@@ -211,13 +235,14 @@ export default function EmployeesView() {
                 <td className="p-3">{e.arl || "-"}</td><td className="p-3">{e.afp || "-"}</td>
                 <td className="p-3">{e.ccf || "-"}</td><td className="p-3">{e.fondo_cesantias || "-"}</td>
                 <td className="p-3">{e.active ? "✅" : "❌"}</td>
+                <td className="p-3">{e.processing_basis ? "Registrada" : "Pendiente de revisión"}</td>
                 <td className="p-3 space-x-2">
                   <button onClick={() => openEdit(e)} className="text-accent hover:underline text-sm">Editar</button>
                   <button onClick={() => deleteEmp(e.id)} className="text-danger hover:underline text-sm">Eliminar</button>
                 </td>
               </motion.tr>
             ))}
-            {employees.length === 0 && <tr><td colSpan={12} className="p-6 text-center text-secondary">No hay empleados</td></tr>}
+            {employees.length === 0 && <tr><td colSpan={13} className="p-6 text-center text-secondary">No hay empleados</td></tr>}
           </tbody>
         </table>
       </div>
@@ -259,6 +284,14 @@ export default function EmployeesView() {
                 <label className="block text-xs text-secondary mb-1">{c.label}</label>{c.content}
               </motion.div>
             ))}
+            <div className="col-span-3">
+              <PersonalDataBasisFields
+                subject="employee"
+                subjectId={editing?.id}
+                value={processingBasis}
+                onChange={setProcessingBasis}
+              />
+            </div>
             {error && <div className="col-span-3 p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm">{error}</div>}
           </div>
           <div className="flex justify-end gap-3 mt-6">

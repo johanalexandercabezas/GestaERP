@@ -1,102 +1,147 @@
 name: Release GestaERP
 
-# Disparadores:
-# - push de tags con formato vX.Y.Z (ej: git tag v1.1.0 && git push --tags)
-# - workflow_dispatch (botón "Run workflow" en GitHub)
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag existente que se desea compilar y publicar (por ejemplo v1.0.2)"
+        required: true
+        type: string
 
-env:
-  # URL base de la release de GitHub (usada para el updater)
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: "windows-latest"
-            args: "--target x86_64-pc-windows-msvc"
-    runs-on: ${{ matrix.platform }}
-
+  build-windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
-      - name: Setup Node.js
+      - name: Confirmar que el repositorio sea público
+        shell: pwsh
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $repo = Invoke-RestMethod -Uri "$env:API_URL/repos/$env:REPOSITORY" -Headers $headers
+          if ($repo.private) {
+            throw "El repositorio debe ser público para que los clientes descarguen las actualizaciones."
+          }
+
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: npm
 
-      - name: Install frontend dependencies
+      - name: Instalar dependencias frontend
         run: npm ci
 
-      - name: Install Rust (stable)
+      - name: Instalar Rust estable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
-      - name: Rust cache
+      - name: Caché de Rust
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri"
+          workspaces: src-tauri
 
-      - name: Build GestaERP (Windows)
-        if: matrix.platform == 'windows-latest'
-        run: npm run tauri build
+      - name: Validar tag y versiones
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/updater-manifest.mjs --validate-only --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
+
+      - name: Verificar secretos requeridos
+        shell: pwsh
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PRODUCTION_SECRET: ${{ secrets.GESTAERP_PRODUCTION_SECRET }}
+          PRODUCTION_PEPPER: ${{ secrets.GESTAERP_PRODUCTION_PEPPER }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_KEY)) { throw "Falta el secreto TAURI_SIGNING_PRIVATE_KEY." }
+          if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_SECRET)) { throw "Falta el secreto GESTAERP_PRODUCTION_SECRET." }
+          if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_PEPPER)) { throw "Falta el secreto GESTAERP_PRODUCTION_PEPPER." }
+
+      - name: Compilar instaladores Windows firmados
+        run: npm run tauri -- build --bundles nsis
         env:
           GESTAERP_ENV: production
           GESTAERP_SECRET_KEY: ${{ secrets.GESTAERP_PRODUCTION_SECRET }}
           GESTAERP_DB_PEPPER: ${{ secrets.GESTAERP_PRODUCTION_PEPPER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Upload artifacts
+      - name: Verificar instalador y firma generados
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem "src-tauri/target/release/bundle" -Recurse -File -Filter "*-setup.exe")
+          if ($installers.Count -ne 1) { throw "Se esperaba un único instalador NSIS; encontrados: $($installers.Count)." }
+          if (-not (Test-Path "$($installers[0].FullName).sig")) { throw "No se generó la firma del updater junto al instalador." }
+
+      - name: Guardar instaladores firmados
         uses: actions/upload-artifact@v4
         with:
-          name: gestaerp-${{ matrix.platform }}
-          path: |
-            src-tauri/target/release/bundle/*
+          name: gestaerp-windows
+          path: src-tauri/target/release/bundle/
+          if-no-files-found: error
+          retention-days: 2
 
-  release:
-    needs: build
+  publish-release:
+    needs: build-windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
-      - name: Download artifacts
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Descargar instaladores firmados
         uses: actions/download-artifact@v4
         with:
+          name: gestaerp-windows
           path: artifacts
 
-      - name: Extract version from tag
-        id: version
+      - name: Validar instalador y generar notas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          # El tag "v1.2.3" -> "1.2.3"
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$RELEASE_TAG" --jq .body > release-notes.md
+          node scripts/updater-manifest.mjs --bundle-dir artifacts --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --notes-file release-notes.md
 
-      - name: Create GitHub Release
+      - name: Publicar GitHub Release y artefactos
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "GestaERP v${{ steps.version.outputs.VERSION }}"
-          body: |
-            🚀 **Nueva versión de GestaERP — v${{ steps.version.outputs.VERSION }}**
-
-            ## 📦 Instalación
-            1. Descarga el instalador para Windows: **GestaERP_${{ steps.version.outputs.VERSION }}_x64-setup.exe**
-            2. Ejecuta el archivo (Windows SmartScreen puede pedir "Más información" → "Ejecutar de todas formas").
-            3. Los datos existentes (base de datos, configuración) se conservan automáticamente.
-
-            ## ✅ Para desarrolladores
-            - Este release fue generado automáticamente por GitHub Actions.
-            - Los artefactos incluyen el ejecutable de actualización (`latest.json` + `.msi`/`.exe`) para el **Tauri Updater** integrado en la app.
-            - Entero firmado con la clave privada almacenada en `TAURI_SIGNING_PRIVATE_KEY` (secrets del repositorio).
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: "GestaERP ${{ inputs.tag || github.ref_name }}"
+          body_path: release-notes.md
+          make_latest: true
           files: |
-            artifacts/*/*
-          fail_on_unmatched_files: false
+            artifacts/latest.json
+            artifacts/**/*.exe
+            artifacts/**/*.exe.sig
+            artifacts/**/*.msi
+            artifacts/**/*.msi.sig
+          fail_on_unmatched_files: true

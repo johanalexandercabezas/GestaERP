@@ -29,6 +29,8 @@ pub struct GestaHelpReply {
     pub tools: Vec<String>,
     /// Plan de acción pendiente de confirmación (presente si `requires_confirmation`).
     pub plan: Option<GestaHelpPlan>,
+    /// Módulo de destino pertinente para continuar la tarea.
+    pub suggested_view: Option<String>,
 }
 
 /// Comando `chat` de GestaHelp.
@@ -55,12 +57,21 @@ pub fn chat(
     let mut plan: Option<GestaHelpPlan> = None;
     let mut reply: String;
     let mut executed = false;
-    let requires_confirmation = kind == intent_engine::IntentKind::Create;
+    let mut requires_confirmation = false;
+    let mut suggested_view = knowledge::suggested_view(&message).map(str::to_string);
 
-    if requires_confirmation {
+    if kind == intent_engine::IntentKind::Create {
         // Motor 3: generar el plan (resumen) para que el usuario confirme.
         match planner::plan_create(&message) {
+            Some(p) if p.tool == "tool_create_customer" => {
+                reply = "Para registrar un cliente con la trazabilidad de la base y finalidad del tratamiento, usa el formulario del módulo **Clientes**. GestaHelp no crea clientes directamente para evitar omitir ese registro.".to_string();
+                suggested_view = Some("customers".to_string());
+            }
             Some(p) => {
+                requires_confirmation = true;
+                suggested_view =
+                    crate::assistant::tool_registry::navigation_target_for_name(&p.tool)
+                        .map(str::to_string);
                 tools.push(p.tool.clone());
                 plan = Some(p.clone());
                 reply = format!("{}\n\n¿**Deseas continuar**?", p.summary);
@@ -81,6 +92,7 @@ pub fn chat(
             Ok(text) => {
                 reply = text;
                 executed = true;
+                suggested_view = Some("dashboard".to_string());
             }
             Err(e) => reply = format!("⚠️ No pude analizar el negocio: {e}"),
         }
@@ -89,6 +101,7 @@ pub fn chat(
         match planner::select_tool(&message, kind, &ctx) {
             Some(tool) => {
                 tools.push(tool.name().to_string());
+                suggested_view = Some(tool.navigation_target().to_string());
                 match executor::execute_consult(&state, tool, &message) {
                     Ok(r) => {
                         reply = r;
@@ -113,6 +126,7 @@ pub fn chat(
         executed,
         tools,
         plan,
+        suggested_view,
     })
 }
 
@@ -132,5 +146,7 @@ pub fn execute(state: State<AppState>, plan: GestaHelpPlan) -> Result<GestaHelpR
         executed: true,
         tools: vec![plan.tool.clone()],
         plan: None,
+        suggested_view: crate::assistant::tool_registry::navigation_target_for_name(&plan.tool)
+            .map(str::to_string),
     })
 }

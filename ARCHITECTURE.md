@@ -197,8 +197,11 @@ Sistema de migraciones versionadas en `schema_migrations`:
 ### Protección de Datos
 - **SQLCipher**: La base se cifra con una clave Argon2id derivada de la frase de recuperación
 - **Almacén seguro**: La clave se guarda en el keyring nativo y la frase no se persiste
+- **Recuperación de cuenta**: tres respuestas aleatorias del administrador se guardan con Argon2id; cinco intentos incorrectos bloquean por 15 minutos, con contador persistente
+- **Límite**: las preguntas personales son menos seguras que un código offline aleatorio de un solo uso; restablecer la contraseña de login no recupera la clave SQLCipher
 - **Backups `.gbackup`**: snapshot SQLCipher y sal de recuperación; el servidor remoto recibe solo bytes cifrados
 - **Portabilidad**: la restauración en otro equipo requiere el backup y su frase de recuperación
+- **Ubicación local**: los nuevos `.gbackup` se guardan junto a `gestaerp.db` en `%APPDATA%\GestaERP` en Windows; recuperación descubre los archivos válidos allí y en la carpeta heredada `backups`
 - **Snapshots/restauración**: se usa `sqlcipher_export` dentro de SQLCipher; la API SQLite `Backup` no admite bases cifradas
 - **Variables de entorno**: Secretos (`GESTAERP_SECRET_KEY`) nunca en código fuente
 

@@ -13,9 +13,11 @@ mod customers;
 mod db;
 mod expenses;
 mod implementation;
+mod legal;
 mod license;
 mod payroll;
 mod payroll_reports;
+mod personal_data;
 mod physical_inventory;
 mod products;
 mod purchases;
@@ -305,6 +307,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_database_security_state,
+            commands::settings::list_recovery_backups,
             commands::settings::initialize_database_security,
             commands::settings::recover_database_key,
             commands::settings::configure_backup_sync,
@@ -367,6 +370,10 @@ fn main() {
             commands::reports::generate_sales_report,
             commands::reports::export_report_to_csv,
             commands::users::create_bootstrap_admin,
+            commands::users::get_recovery_setup_questions,
+            commands::users::configure_admin_recovery_answers,
+            commands::users::get_admin_recovery_questions,
+            commands::users::reset_admin_password,
             commands::users::create_user,
             commands::users::list_users,
             commands::users::update_user,
@@ -387,6 +394,9 @@ fn main() {
             commands::licenses::activate_license,
             commands::licenses::activate_trial,
             commands::licenses::get_license_status,
+            commands::legal::get_legal_acceptance_status,
+            commands::legal::accept_current_legal_documents,
+            commands::personal_data::list_personal_data_basis_history,
             commands::notifications::get_notifications,
             commands::settings::get_setting,
             commands::settings::set_setting,
@@ -419,7 +429,6 @@ fn main() {
             commands::calendar::delete_calendar_note,
             commands::info::get_app_info,
             commands::info::is_db_ready,
-            commands::updates::apply_update,
             commands::updates::get_app_version,
             commands::gestahelp::chat,
             commands::gestahelp::execute,

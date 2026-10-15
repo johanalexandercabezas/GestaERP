@@ -59,6 +59,8 @@ fn validate_key(key: &str, expected_plan: &str) -> bool {
 }
 
 pub fn activate_license(conn: &Connection, key: &str, plan: &str) -> Result<LicenseInfo> {
+    crate::legal::require_current_acceptance(conn)
+        .map_err(rusqlite::Error::InvalidParameterName)?;
     if !validate_key(key, plan) {
         return Err(rusqlite::Error::InvalidParameterName(
             "Clave de activación inválida o expirada".into(),
@@ -88,6 +90,8 @@ pub fn activate_license(conn: &Connection, key: &str, plan: &str) -> Result<Lice
 }
 
 pub fn activate_trial(conn: &Connection) -> Result<LicenseInfo> {
+    crate::legal::require_current_acceptance(conn)
+        .map_err(rusqlite::Error::InvalidParameterName)?;
     let exists: bool = conn
         .query_row(
             "SELECT COUNT(*) > 0 FROM licenses WHERE active = 1",
@@ -276,9 +280,18 @@ mod tests {
                 max_users INTEGER NOT NULL DEFAULT 1,
                 active INTEGER NOT NULL DEFAULT 1
             );
+            CREATE TABLE legal_acceptances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_type TEXT NOT NULL,
+                document_version TEXT NOT NULL,
+                accepted_at TEXT NOT NULL,
+                app_version TEXT NOT NULL,
+                acceptance_method TEXT NOT NULL
+            );
         ",
         )
         .unwrap();
+        crate::legal::accept_current_documents(&conn, true, true, "test").unwrap();
         conn
     }
 
@@ -324,6 +337,13 @@ mod tests {
 
         let res2 = activate_trial(&conn);
         assert!(res2.is_err());
+    }
+
+    #[test]
+    fn trial_activation_requires_current_legal_acceptance() {
+        let conn = setup_test_db();
+        conn.execute("DELETE FROM legal_acceptances", []).unwrap();
+        assert!(activate_trial(&conn).is_err());
     }
 
     #[test]

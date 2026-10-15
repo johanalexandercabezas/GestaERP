@@ -335,55 +335,17 @@ pub fn execute_write(
     if tool_requires_admin(&plan.tool) && role != ROLE_ADMIN {
         return Err("No autorizado: esta acción requiere privilegios de administrador".to_string());
     }
+    if plan.tool == "tool_create_customer" {
+        return Err(
+            "Usa el formulario del módulo Clientes para registrar la base y finalidad del tratamiento."
+                .to_string(),
+        );
+    }
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     match plan.tool.as_str() {
-        "tool_create_customer" => create_customer_exec(&conn, &plan.params, user_id, username),
         "tool_register_expense" => register_expense_exec(&conn, &plan.params, user_id, username),
         other => Err(format!("Herramienta de escritura no soportada: {other}")),
     }
-}
-
-fn create_customer_exec(
-    conn: &Connection,
-    params: &std::collections::HashMap<String, String>,
-    user_id: i64,
-    username: &str,
-) -> Result<String, String> {
-    let name = params.get("name").cloned().unwrap_or_default();
-    if name.trim().is_empty() {
-        return Err("Falta el nombre del cliente".to_string());
-    }
-    let doc_type = params.get("doc_type").cloned();
-    let doc_number = params.get("doc_number").cloned();
-    let phone = params.get("phone").cloned();
-    let email = params.get("email").cloned();
-
-    let id = crate::customers::create_customer(
-        conn,
-        &name,
-        doc_type.as_deref(),
-        doc_number.as_deref(),
-        phone.as_deref(),
-        email.as_deref(),
-    )
-    .map_err(|e| format!("Error al crear el cliente: {e}"))?;
-
-    crate::audit::log_action(
-        conn,
-        user_id,
-        username,
-        "customers",
-        id,
-        "CREATE",
-        None,
-        Some(&format!(
-            "name={name}, doc_number={}",
-            doc_number.unwrap_or_default()
-        )),
-    );
-    Ok(format!(
-        "✅ **Cliente creado** correctamente: **{name}** (ID {id})."
-    ))
 }
 
 fn register_expense_exec(

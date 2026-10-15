@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
+import PersonalDataBasisFields from "../components/PersonalDataBasisFields";
+import {
+  emptyProcessingBasis,
+  type ProcessingBasisInput,
+  type ProcessingBasisRecord,
+} from "../types/personalData";
 
 interface Customer {
   id: number;
@@ -9,6 +15,7 @@ interface Customer {
   doc_number: string | null;
   phone: string | null;
   email: string | null;
+  processing_basis: ProcessingBasisRecord | null;
 }
 
 export default function CustomersView() {
@@ -20,6 +27,8 @@ export default function CustomersView() {
   const [docNumber, setDocNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [processingBasis, setProcessingBasis] =
+    useState<ProcessingBasisInput>(emptyProcessingBasis);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +51,7 @@ export default function CustomersView() {
     setDocNumber("");
     setPhone("");
     setEmail("");
+    setProcessingBasis(emptyProcessingBasis());
     setError("");
     setEditing(null);
   };
@@ -58,6 +68,18 @@ export default function CustomersView() {
     setDocNumber(c.doc_number || "");
     setPhone(c.phone || "");
     setEmail(c.email || "");
+    setProcessingBasis(
+      c.processing_basis
+        ? {
+            basis: c.processing_basis.basis,
+            basisDetail: c.processing_basis.basisDetail,
+            purpose: c.processing_basis.purpose,
+            effectiveDate: c.processing_basis.effectiveDate,
+            evidenceMethod: c.processing_basis.evidenceMethod,
+            evidenceReference: c.processing_basis.evidenceReference,
+          }
+        : emptyProcessingBasis(),
+    );
     setError("");
     setShowForm(true);
   };
@@ -77,6 +99,7 @@ export default function CustomersView() {
           docNumber: docNumber || null,
           phone: phone || null,
           email: email || null,
+          processingBasis,
         });
       } else {
         await invoke("create_customer", {
@@ -85,6 +108,7 @@ export default function CustomersView() {
           docNumber: docNumber || null,
           phone: phone || null,
           email: email || null,
+          processingBasis,
         });
       }
       setShowForm(false);
@@ -122,6 +146,7 @@ export default function CustomersView() {
               <th className="p-3">Documento</th>
               <th className="p-3">Teléfono</th>
               <th className="p-3">Email</th>
+              <th className="p-3">Trazabilidad</th>
               <th className="p-3">Acciones</th>
             </tr>
           </thead>
@@ -140,6 +165,9 @@ export default function CustomersView() {
                 </td>
                 <td className="p-3">{c.phone || "-"}</td>
                 <td className="p-3">{c.email || "-"}</td>
+                <td className="p-3">
+                  {c.processing_basis ? "Registrada" : "Pendiente de revisión"}
+                </td>
                 <td className="p-3 space-x-2">
                   <button
                     onClick={() => openEdit(c)}
@@ -158,13 +186,13 @@ export default function CustomersView() {
             ))}
             {loading ? (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-secondary">
+                <td colSpan={6} className="p-6 text-center text-secondary">
                   Cargando clientes...
                 </td>
               </tr>
             ) : customers.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-secondary">
+                <td colSpan={6} className="p-6 text-center text-secondary">
                   No hay clientes registrados
                 </td>
               </tr>
@@ -225,6 +253,12 @@ export default function CustomersView() {
                   className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
                 />
               </div>
+              <PersonalDataBasisFields
+                subject="customer"
+                subjectId={editing?.id}
+                value={processingBasis}
+                onChange={setProcessingBasis}
+              />
               {error && (
                 <div className="p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm">
                   {error}

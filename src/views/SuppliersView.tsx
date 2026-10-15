@@ -7,8 +7,14 @@ import PremiumButton from "../components/ui/PremiumButton";
 import { showToast } from "../components/ui/PremiumToast";
 import Skeleton from "../components/ui/Skeleton";
 import NumericInput from "../components/ui/NumericInput";
+import PersonalDataBasisFields from "../components/PersonalDataBasisFields";
 import { Building2, Edit3, Trash2, Search } from "lucide-react";
 import { toUpper, onlyNumbers } from "../utils/uppercase";
+import {
+  emptyProcessingBasis,
+  type ProcessingBasisInput,
+  type ProcessingBasisRecord,
+} from "../types/personalData";
 
 interface Supplier {
   id: number;
@@ -26,6 +32,7 @@ interface Supplier {
   offers_credit: boolean;
   credit_days: number;
   credit_limit: number;
+  processing_basis: ProcessingBasisRecord | null;
 }
 
 const DOC_TYPE_OPTIONS = [
@@ -105,6 +112,8 @@ export default function SuppliersView() {
   const [offersCredit, setOffersCredit] = useState(false);
   const [creditDays, setCreditDays] = useState("0");
   const [creditLimit, setCreditLimit] = useState("0");
+  const [processingBasis, setProcessingBasis] =
+    useState<ProcessingBasisInput>(emptyProcessingBasis);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -130,6 +139,7 @@ export default function SuppliersView() {
     setPaymentMethod("TRANSFERENCIA"); setBankName(""); setBankAccount("");
     setIvaResponsible(false); setOffersCredit(false);
     setCreditDays("0"); setCreditLimit("0");
+    setProcessingBasis(emptyProcessingBasis());
     setError(""); setEditing(null);
   };
 
@@ -143,6 +153,18 @@ export default function SuppliersView() {
     setBankName(s.bank_name || ""); setBankAccount(s.bank_account || "");
     setIvaResponsible(s.iva_responsible); setOffersCredit(s.offers_credit);
     setCreditDays(s.credit_days.toString()); setCreditLimit(s.credit_limit.toString());
+    setProcessingBasis(
+      s.processing_basis
+        ? {
+            basis: s.processing_basis.basis,
+            basisDetail: s.processing_basis.basisDetail,
+            purpose: s.processing_basis.purpose,
+            effectiveDate: s.processing_basis.effectiveDate,
+            evidenceMethod: s.processing_basis.evidenceMethod,
+            evidenceReference: s.processing_basis.evidenceReference,
+          }
+        : emptyProcessingBasis(),
+    );
     setError(""); setShowForm(true);
   };
 
@@ -175,6 +197,7 @@ export default function SuppliersView() {
           ivaResponsible, offersCredit,
           creditDays: parseInt(creditDays) || 0,
           creditLimit: parseFloat(creditLimit) || 0,
+          processingBasis,
         });
         showToast("PROVEEDOR ACTUALIZADO", "success");
       } else {
@@ -185,6 +208,7 @@ export default function SuppliersView() {
           ivaResponsible, offersCredit,
           creditDays: parseInt(creditDays) || 0,
           creditLimit: parseFloat(creditLimit) || 0,
+          processingBasis,
         });
         showToast("PROVEEDOR CREADO", "success");
       }
@@ -264,6 +288,7 @@ export default function SuppliersView() {
                   <th className="p-3 font-semibold">TELÉFONO</th>
                   <th className="p-3 font-semibold">EMAIL</th>
                   <th className="p-3 font-semibold">CRÉDITO</th>
+                  <th className="p-3 font-semibold">TRAZABILIDAD</th>
                   <th className="p-3 font-semibold text-right">ACCIONES</th>
                 </tr>
               </thead>
@@ -288,6 +313,9 @@ export default function SuppliersView() {
                         <span className="text-secondary">NO</span>
                       )}
                     </td>
+                    <td className="p-3 text-secondary">
+                      {s.processing_basis ? "REGISTRADA" : "PENDIENTE DE REVISIÓN"}
+                    </td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-secondary hover:text-accent hover:bg-accent/10 transition-all" title="EDITAR">
@@ -302,7 +330,7 @@ export default function SuppliersView() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-secondary">
+                    <td colSpan={8} className="p-8 text-center text-secondary">
                       <Building2 size={32} className="mx-auto mb-2 opacity-30" />
                       NO HAY PROVEEDORES REGISTRADOS
                       <br />
@@ -452,6 +480,13 @@ export default function SuppliersView() {
               )}
             </div>
           </div>
+
+          <PersonalDataBasisFields
+            subject="supplier"
+            subjectId={editing?.id}
+            value={processingBasis}
+            onChange={setProcessingBasis}
+          />
 
           {error && (
             <div className="p-3 bg-danger-theme border border-danger-theme rounded-lg text-danger-theme text-sm">

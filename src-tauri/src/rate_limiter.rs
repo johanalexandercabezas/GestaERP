@@ -115,6 +115,10 @@ impl RateLimiter {
 pub static LOGIN_RATE_LIMITER: std::sync::LazyLock<RateLimiter> =
     std::sync::LazyLock::new(|| RateLimiter::new(5, 60, 900));
 
+/// Limita solicitudes de preguntas y respuestas de recuperación del administrador.
+pub static PASSWORD_RECOVERY_RATE_LIMITER: std::sync::LazyLock<RateLimiter> =
+    std::sync::LazyLock::new(|| RateLimiter::new(5, 300, 900));
+
 #[cfg(test)]
 mod tests {
     use super::*;

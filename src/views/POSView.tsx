@@ -5,6 +5,11 @@ import { showToast } from "../components/ui/PremiumToast";
 import { formatCOP } from "../utils/formatCurrency";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Search, Plus, Minus, Trash2, CreditCard, Printer, X, DollarSign, AlertTriangle, Percent, UserPlus } from "lucide-react";
+import PersonalDataBasisFields from "../components/PersonalDataBasisFields";
+import {
+  emptyProcessingBasis,
+  type ProcessingBasisInput,
+} from "../types/personalData";
 
 interface Product {
   id: number;
@@ -60,6 +65,8 @@ export default function POSView({ userId: _userId }: POSViewProps) {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [newCustomerError, setNewCustomerError] = useState("");
+  const [newCustomerBasis, setNewCustomerBasis] =
+    useState<ProcessingBasisInput>(emptyProcessingBasis);
 
   useEffect(() => {
     invoke<{ id: number; name: string }[]>("list_customers")
@@ -217,12 +224,14 @@ export default function POSView({ userId: _userId }: POSViewProps) {
         docNumber: newCustomerDocNumber,
         phone: newCustomerPhone,
         email: newCustomerEmail || null,
+        processingBasis: newCustomerBasis,
       });
       const updatedCustomers = await invoke<{ id: number; name: string }[]>("list_customers");
       setCustomers(updatedCustomers);
       setCustomerId(newId);
       setShowNewCustomer(false);
       setNewCustomerName(""); setNewCustomerDocNumber(""); setNewCustomerPhone(""); setNewCustomerEmail("");
+      setNewCustomerBasis(emptyProcessingBasis());
     } catch (e) {
       setNewCustomerError(String(e));
     }
@@ -367,7 +376,7 @@ export default function POSView({ userId: _userId }: POSViewProps) {
                           <option value="">Seleccione un cliente</option>
                           {customers.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
                         </select>
-                        <button onClick={() => setShowNewCustomer(true)}
+                        <button onClick={() => { setNewCustomerBasis(emptyProcessingBasis()); setShowNewCustomer(true); }}
                           className="px-3 py-2.5 bg-accent text-white rounded-lg hover:bg-accent-hover transition flex items-center gap-1">
                           <UserPlus size={16} /> Nuevo
                         </button>
@@ -406,6 +415,18 @@ export default function POSView({ userId: _userId }: POSViewProps) {
                               className="w-full px-2 py-1.5 bg-card border border-theme rounded text-primary text-sm" />
                           </div>
                         </div>
+                        <details className="rounded border border-theme p-2">
+                          <summary className="cursor-pointer text-sm text-primary">
+                            Trazabilidad de datos (obligatoria)
+                          </summary>
+                          <div className="mt-2">
+                            <PersonalDataBasisFields
+                              subject="customer"
+                              value={newCustomerBasis}
+                              onChange={setNewCustomerBasis}
+                            />
+                          </div>
+                        </details>
                         {newCustomerError && <div className="text-xs text-danger bg-danger/10 p-2 rounded">{newCustomerError}</div>}
                         <div className="flex gap-2">
                           <button onClick={handleCreateCustomer}

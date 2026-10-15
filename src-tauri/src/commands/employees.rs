@@ -26,12 +26,15 @@ pub fn create_employee(
     afp: Option<String>,
     ccf: Option<String>,
     fondo_cesantias: Option<String>,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<i64, String> {
     auth_guard::require_admin(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let base_salary = parse_f64(&base_salary, "salario base")?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::payroll::create_employee(
-        &conn,
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let id = crate::payroll::create_employee(
+        &transaction,
         &name,
         doc_type.as_deref(),
         doc_number.as_deref(),
@@ -53,7 +56,19 @@ pub fn create_employee(
         ccf.as_deref(),
         fondo_cesantias.as_deref(),
     )
-    .map_err(|e| format!("Error al crear empleado: {}", e))
+    .map_err(|e| format!("Error al crear empleado: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "employee",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar el registro del empleado: {e}"))?;
+    Ok(id)
 }
 
 #[tauri::command]
@@ -88,10 +103,13 @@ pub fn update_employee(
     ccf: Option<String>,
     fondo_cesantias: Option<String>,
     active: bool,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let base_salary = parse_f64(&base_salary, "salario base")?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let e = crate::payroll::Employee {
         id,
         name,
@@ -115,9 +133,21 @@ pub fn update_employee(
         ccf,
         fondo_cesantias: fondo_cesantias,
         active,
+        processing_basis: None,
     };
-    crate::payroll::update_employee(&conn, &e)
-        .map_err(|e| format!("Error al actualizar empleado: {}", e))
+    crate::payroll::update_employee(&transaction, &e)
+        .map_err(|e| format!("Error al actualizar empleado: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "employee",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar la actualización del empleado: {e}"))
 }
 
 #[tauri::command]

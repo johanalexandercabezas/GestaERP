@@ -10,18 +10,33 @@ pub fn create_customer(
     doc_number: Option<String>,
     phone: Option<String>,
     email: Option<String>,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<i64, String> {
     auth_guard::require_auth(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::customers::create_customer(
-        &conn,
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let id = crate::customers::create_customer(
+        &transaction,
         &name,
         doc_type.as_deref(),
         doc_number.as_deref(),
         phone.as_deref(),
         email.as_deref(),
     )
-    .map_err(|e| format!("Error al crear cliente: {}", e))
+    .map_err(|e| format!("Error al crear cliente: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "customer",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar el registro del cliente: {e}"))?;
+    Ok(id)
 }
 
 #[tauri::command]
@@ -40,9 +55,12 @@ pub fn update_customer(
     doc_number: Option<String>,
     phone: Option<String>,
     email: Option<String>,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let c = crate::customers::Customer {
         id,
         name,
@@ -50,9 +68,21 @@ pub fn update_customer(
         doc_number,
         phone,
         email,
+        processing_basis: None,
     };
-    crate::customers::update_customer(&conn, &c)
-        .map_err(|e| format!("Error al actualizar cliente: {}", e))
+    crate::customers::update_customer(&transaction, &c)
+        .map_err(|e| format!("Error al actualizar cliente: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "customer",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar la actualización del cliente: {e}"))
 }
 
 #[tauri::command]

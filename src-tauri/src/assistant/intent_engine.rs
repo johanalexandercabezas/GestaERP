@@ -1,10 +1,9 @@
 //! Motor 1 — Comprensión.
 //!
 //! Única responsabilidad: determinar QUÉ quiere el usuario a partir del texto.
-//! Fase 0 implementa un clasificador basado en reglas (RuleEngine). Este es el
-//! punto donde, en fases posteriores, se enchufará un LLM local o un proveedor
-//! externo sin cambiar nada más de la arquitectura: basta con que el motor
-//! devuelva el mismo `IntentKind`.
+//! La implementación actual usa reglas locales. Este es el punto de extensión
+//! para otro motor que implemente el mismo contrato; GestaHelp no llama a un
+//! modelo local ni a un proveedor externo.
 
 use super::context::Context;
 
@@ -25,14 +24,12 @@ pub enum IntentKind {
     Unknown,
 }
 
-/// Motor 1 — Comprensión: interfaz. Permite enchufar un LLM (local o proveedor)
-/// SIN tocar el resto de la arquitectura: basta con que la implementación
-/// devuelva el mismo `IntentKind`.
+/// Contrato del clasificador de intenciones.
 pub trait IntentEngine: Send + Sync {
     fn analyze_intent(&self, message: &str) -> IntentKind;
 }
 
-/// Implementación por reglas (predeterminada, funciona 100% sin conexión).
+/// Implementación actual por reglas; funciona 100% sin conexión.
 pub struct RuleEngine;
 
 impl IntentEngine for RuleEngine {
@@ -41,9 +38,7 @@ impl IntentEngine for RuleEngine {
     }
 }
 
-/// Devuelve el motor de comprensión actual. Es el ÚNICO punto para cambiar de
-/// motor: sustituir `RuleEngine` por un `LocalLlmEngine`/proveedor sin alterar
-/// el comando. `default_engine()` es reemplazable en esta función.
+/// Devuelve el motor de comprensión actual.
 pub fn default_engine() -> Box<dyn IntentEngine> {
     Box::new(RuleEngine)
 }
@@ -159,36 +154,55 @@ fn analyze_rules(message: &str) -> IntentKind {
     }
 }
 
-/// Compone la respuesta literal del asistente a la intención detectada.
-/// En la Fase 0 no ejecuta herramientas: orienta al usuario y confirma la
-/// conexión real con el backend. Las fases 1+ reemplazan este texto por
-/// resultados reales de consulta/análisis.
+/// Guía al usuario cuando el mensaje no coincide con una consulta o acción disponible.
 pub fn build_reply(message: &str, kind: IntentKind, ctx: &Context) -> String {
-    let area = ctx.view.as_deref().unwrap_or("ERP");
-    let _ = message;
-
-    let intro = match kind {
-        IntentKind::Consult => {
-            format!("Entendí que quieres **consultar** información de **{area}**.")
-        }
-        IntentKind::Create => {
-            format!("Entendí que quieres **crear o modificar** un registro en **{area}**.")
-        }
-        IntentKind::Explain => {
-            format!("Entendí que quieres que te **explique** cómo funciona algo en **{area}**.")
-        }
-        IntentKind::Analyze => {
-            format!("Entendí que quieres un **análisis** del negocio desde **{area}**.")
-        }
-        IntentKind::Unknown => format!("Hola, soy **GestaHelp**, tu asistente de **{area}**."),
+    let area = ctx.display_name();
+    let normalized_message = message.to_lowercase();
+    let example = match ctx.view.as_deref() {
+        Some("products") => "¿qué productos están por debajo del stock mínimo?",
+        Some("pos") => "¿cuánto vendimos hoy?",
+        Some("cash") => "¿cuál es el saldo actual de caja?",
+        Some("expenses") => "¿cuánto gastamos hoy?",
+        Some("receivables") => "¿qué cuentas por cobrar están pendientes?",
+        Some("customers") => "¿cómo registro un cliente?",
+        Some("purchases") => "¿cómo registro una compra?",
+        Some("payroll") => "¿cómo genero la nómina?",
+        _ => "¿cuánto vendimos hoy?",
     };
 
-    format!(
-        "{intro}\n\nEstoy en fase inicial (Fase 0): el backend ya está conectado y los motores \
-         (comprensión, contexto, acción, explicación y recomendación) están en construcción. \
-         Para ayudarte mejor, prueba con: **\"¿cuánto vendimos hoy?\"**, **\"crea un cliente\"**, \
-         **\"¿cómo funciona el cierre de caja?\"** o **\"¿qué me recomiendas?\"**."
-    )
+    match kind {
+        IntentKind::Create
+            if contains_any(&normalized_message, &["cliente", "persona"]) =>
+        {
+            "Para registrar un cliente con su trazabilidad de tratamiento, usa el formulario del módulo **Clientes**. No he cambiado ningún dato.".to_string()
+        }
+        IntentKind::Create => format!(
+            "No pude preparar esa acción a partir de **\"{}\"** y no he cambiado ningún dato. \
+             Puedo preparar el registro de gastos. Prueba, por ejemplo: \
+             **\"registra un gasto de 25000 por arriendo\"**.",
+            message.trim()
+        ),
+        IntentKind::Consult => format!(
+            "No identifiqué qué dato quieres consultar en **{area}**. No ejecuté ninguna consulta. \
+             Prueba con: **\"{example}\"**."
+        ),
+        IntentKind::Explain => format!(
+            "Aún no tengo una guía específica para **\"{}\"**. Puedo explicar procedimientos del ERP; \
+             por ejemplo, **\"¿cómo funciona el cierre de caja?\"**. También puedes consultar ayuda \
+             sobre el módulo **{area}**.",
+            message.trim()
+        ),
+        IntentKind::Analyze => format!(
+            "No pude relacionar esa solicitud con un análisis disponible. Prueba con \
+             **\"¿qué productos debo reponer?\"** o pide un resumen del mes."
+        ),
+        IntentKind::Unknown => format!(
+            "No entendí **\"{}\"**. Soy un asistente local basado en guías y consultas disponibles \
+             del ERP; no soy un modelo generativo ni envío el chat a un servicio externo. \
+             Desde **{area}**, prueba: **\"{example}\"**.",
+            message.trim()
+        ),
+    }
 }
 
 fn contains_any(text: &str, keys: &[&str]) -> bool {
@@ -236,5 +250,27 @@ mod tests {
     #[test]
     fn mensaje_desconocido() {
         assert_eq!(kind("hola que tal"), IntentKind::Unknown);
+    }
+
+    #[test]
+    fn respuesta_desconocida_explica_alcance_sin_mencionar_fases_falsas() {
+        let reply = build_reply(
+            "hola que tal",
+            IntentKind::Unknown,
+            &Context::new(Some("cash".to_string())),
+        );
+        assert!(reply.contains("asistente local"));
+        assert!(reply.contains("saldo actual de caja"));
+        assert!(!reply.contains("Fase 0"));
+    }
+
+    #[test]
+    fn creacion_no_soportada_indica_que_no_modifico_datos() {
+        let reply = build_reply(
+            "crea una factura",
+            IntentKind::Create,
+            &Context::new(Some("pos".to_string())),
+        );
+        assert!(reply.contains("no he cambiado ningún dato"));
     }
 }

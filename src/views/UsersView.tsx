@@ -9,6 +9,11 @@ interface UserRecord {
   active: boolean;
 }
 
+interface RecoveryQuestion {
+  id: string;
+  prompt: string;
+}
+
 export default function UsersView() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [editing, setEditing] = useState<UserRecord | null>(null);
@@ -20,6 +25,12 @@ export default function UsersView() {
   const [active, setActive] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState("");
+  const [recoveryQuestions, setRecoveryQuestions] = useState<RecoveryQuestion[]>([]);
+  const [recoveryAnswers, setRecoveryAnswers] = useState<Record<string, string>>({});
+  const [currentAdminPassword, setCurrentAdminPassword] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
+  const [recoveryNotice, setRecoveryNotice] = useState("");
+  const [savingRecovery, setSavingRecovery] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -30,7 +41,46 @@ export default function UsersView() {
     }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    loadUsers();
+  }, []);
+  useEffect(() => {
+    invoke<RecoveryQuestion[]>("get_recovery_setup_questions")
+      .then(setRecoveryQuestions)
+      .catch((cause) => setRecoveryError(`No se pudieron cargar preguntas: ${String(cause)}`));
+  }, []);
+
+  const saveRecoveryAnswers = async () => {
+    if (
+      !currentAdminPassword ||
+      recoveryQuestions.length !== 3 ||
+      recoveryQuestions.some((question) => !recoveryAnswers[question.id]?.trim())
+    ) {
+      setRecoveryError("Ingresa tu contraseña actual y responde las 3 preguntas.");
+      return;
+    }
+    setSavingRecovery(true);
+    setRecoveryError("");
+    setRecoveryNotice("");
+    try {
+      await invoke("configure_admin_recovery_answers", {
+        currentPassword: currentAdminPassword,
+        recoveryAnswers: recoveryQuestions.map((question) => ({
+          questionId: question.id,
+          answer: recoveryAnswers[question.id],
+        })),
+      });
+      setCurrentAdminPassword("");
+      setRecoveryAnswers({});
+      setRecoveryNotice(
+        "Preguntas de recuperación guardadas. Anota las respuestas y consérvalas fuera de este equipo.",
+      );
+    } catch (cause) {
+      setRecoveryError(String(cause));
+    } finally {
+      setSavingRecovery(false);
+    }
+  };
 
   const resetForm = () => {
     setUsername("");
@@ -43,7 +93,10 @@ export default function UsersView() {
     setEditing(null);
   };
 
-  const openNew = () => { resetForm(); setShowForm(true); };
+  const openNew = () => {
+    resetForm();
+    setShowForm(true);
+  };
   const openEdit = (u: UserRecord) => {
     setEditing(u);
     setUsername(u.username);
@@ -58,7 +111,10 @@ export default function UsersView() {
 
   const save = async () => {
     if (editing) {
-      if (!fullName.trim()) { setError("El nombre completo es obligatorio"); return; }
+      if (!fullName.trim()) {
+        setError("El nombre completo es obligatorio");
+        return;
+      }
       try {
         await invoke("update_user", {
           id: editing.id,
@@ -67,8 +123,12 @@ export default function UsersView() {
           active,
           newPassword: newPassword || null,
         });
-        setShowForm(false); resetForm(); loadUsers();
-      } catch (e) { setError(String(e)); }
+        setShowForm(false);
+        resetForm();
+        loadUsers();
+      } catch (e) {
+        setError(String(e));
+      }
     } else {
       if (!username.trim() || !password.trim() || !fullName.trim()) {
         setError("Usuario, contraseña y nombre completo son obligatorios");
@@ -81,8 +141,12 @@ export default function UsersView() {
           fullName,
           role,
         });
-        setShowForm(false); resetForm(); loadUsers();
-      } catch (e) { setError(String(e)); }
+        setShowForm(false);
+        resetForm();
+        loadUsers();
+      } catch (e) {
+        setError(String(e));
+      }
     }
   };
 
@@ -91,7 +155,9 @@ export default function UsersView() {
       try {
         await invoke("delete_user", { id });
         loadUsers();
-      } catch (e) { alert(String(e)); }
+      } catch (e) {
+        alert(String(e));
+      }
     }
   };
 
@@ -99,8 +165,74 @@ export default function UsersView() {
     <div className="flex-1 p-6 overflow-auto">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Usuarios</h2>
-        <button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 text-primary px-4 py-2 rounded-lg transition">+ Nuevo usuario</button>
+        <button
+          onClick={openNew}
+          className="bg-blue-600 hover:bg-blue-700 text-primary px-4 py-2 rounded-lg transition"
+        >
+          + Nuevo usuario
+        </button>
       </div>
+
+      <section className="mb-6 rounded-xl border border-warning/30 bg-card p-5">
+        <h3 className="font-semibold text-primary">
+          Recuperación local de la cuenta administradora
+        </h3>
+        <p className="mt-1 text-sm text-secondary">
+          Configúrala ahora si esta cuenta ya existía antes de esta versión. Debes responder las
+          tres preguntas y confirmar tu contraseña actual.
+        </p>
+        <p className="mt-2 rounded-lg bg-warning/10 p-3 text-xs leading-5 text-secondary">
+          Guarda las respuestas fuera del equipo. La recuperación no usa correo ni SMS y no puede
+          recuperar la clave de cifrado SQLCipher.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {recoveryQuestions.map((question) => (
+            <label className="block text-sm font-medium text-primary" key={question.id}>
+              {question.prompt}
+              <input
+                autoComplete="off"
+                className="mt-1 w-full rounded-lg border border-theme bg-input px-3 py-2 text-primary"
+                onChange={(event) =>
+                  setRecoveryAnswers((current) => ({
+                    ...current,
+                    [question.id]: event.target.value,
+                  }))
+                }
+                type="password"
+                value={recoveryAnswers[question.id] ?? ""}
+              />
+            </label>
+          ))}
+          <label className="block text-sm font-medium text-primary">
+            Contraseña actual
+            <input
+              autoComplete="current-password"
+              className="mt-1 w-full rounded-lg border border-theme bg-input px-3 py-2 text-primary"
+              onChange={(event) => setCurrentAdminPassword(event.target.value)}
+              type="password"
+              value={currentAdminPassword}
+            />
+          </label>
+        </div>
+        {recoveryError && (
+          <p className="mt-3 text-sm text-danger" role="alert">
+            {recoveryError}
+          </p>
+        )}
+        {recoveryNotice && (
+          <p className="mt-3 text-sm text-success" role="status">
+            {recoveryNotice}
+          </p>
+        )}
+        <button
+          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          disabled={savingRecovery || recoveryQuestions.length !== 3}
+          onClick={saveRecoveryAnswers}
+          type="button"
+        >
+          {savingRecovery ? "Guardando..." : "Guardar preguntas de recuperación"}
+        </button>
+      </section>
 
       <div className="bg-card border border-theme rounded-xl overflow-hidden">
         <table className="w-full text-left">
@@ -121,13 +253,24 @@ export default function UsersView() {
                 <td className="p-3">{u.role}</td>
                 <td className="p-3">{u.active ? "✅" : "❌"}</td>
                 <td className="p-3 space-x-2">
-                  <button onClick={() => openEdit(u)} className="text-blue-400 hover:text-blue-300">Editar</button>
-                  <button onClick={() => deleteUser(u.id)} className="text-red-400 hover:text-red-300">Eliminar</button>
+                  <button onClick={() => openEdit(u)} className="text-blue-400 hover:text-blue-300">
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => deleteUser(u.id)}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    Eliminar
+                  </button>
                 </td>
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={5} className="p-6 text-center text-secondary">No hay usuarios registrados</td></tr>
+              <tr>
+                <td colSpan={5} className="p-6 text-center text-secondary">
+                  No hay usuarios registrados
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -136,21 +279,35 @@ export default function UsersView() {
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-card border border-theme rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">{editing ? "Editar usuario" : "Nuevo usuario"}</h3>
+            <h3 className="text-xl font-bold mb-4">
+              {editing ? "Editar usuario" : "Nuevo usuario"}
+            </h3>
             <div className="space-y-3">
               {!editing && (
                 <div>
                   <label className="block text-sm text-secondary">Usuario *</label>
-                  <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary" />
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+                  />
                 </div>
               )}
               <div>
                 <label className="block text-sm text-secondary">Nombre completo *</label>
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary" />
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+                />
               </div>
               <div>
                 <label className="block text-sm text-secondary">Rol</label>
-                <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary">
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+                >
                   <option value="admin">Administrador</option>
                   <option value="subadmin">Subadministrador</option>
                   <option value="vendedor">Vendedor</option>
@@ -159,27 +316,60 @@ export default function UsersView() {
               </div>
               {editing && (
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} id="active" />
-                  <label htmlFor="active" className="text-sm text-secondary">Usuario activo</label>
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={(e) => setActive(e.target.checked)}
+                    id="active"
+                  />
+                  <label htmlFor="active" className="text-sm text-secondary">
+                    Usuario activo
+                  </label>
                 </div>
               )}
               {!editing && (
                 <div>
                   <label className="block text-sm text-secondary">Contraseña *</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+                  />
                 </div>
               )}
               {editing && (
                 <div>
-                  <label className="block text-sm text-secondary">Nueva contraseña (dejar vacío para no cambiar)</label>
-                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary" />
+                  <label className="block text-sm text-secondary">
+                    Nueva contraseña (dejar vacío para no cambiar)
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary"
+                  />
                 </div>
               )}
-              {error && <div className="p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm">{error}</div>}
+              {error && (
+                <div className="p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm">
+                  {error}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-muted hover:bg-gray-600 rounded-lg text-primary">Cancelar</button>
-              <button onClick={save} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-primary">{editing ? "Actualizar" : "Crear"}</button>
+              <button
+                onClick={() => setShowForm(false)}
+                className="px-4 py-2 bg-muted hover:bg-gray-600 rounded-lg text-primary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={save}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-primary"
+              >
+                {editing ? "Actualizar" : "Crear"}
+              </button>
             </div>
           </div>
         </div>

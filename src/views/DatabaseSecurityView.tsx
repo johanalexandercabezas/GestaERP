@@ -1,6 +1,18 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { KeyRound, ShieldCheck } from "lucide-react";
+
+interface RecoveryBackup {
+  filename: string;
+  created: string;
+  size: number;
+  encrypted: boolean;
+}
+
+interface RecoveryBackupCatalog {
+  directory: string;
+  backups: RecoveryBackup[];
+}
 
 interface DatabaseSecurityViewProps {
   status: string;
@@ -11,10 +23,38 @@ interface DatabaseSecurityViewProps {
 export default function DatabaseSecurityView({ status, onReady, onStatusChange }: DatabaseSecurityViewProps) {
   const [phrase, setPhrase] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [backupPath, setBackupPath] = useState("");
+  const [backupCatalog, setBackupCatalog] = useState<RecoveryBackupCatalog | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState("");
+  const [backupCatalogError, setBackupCatalogError] = useState("");
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const creating = status === "new_database" || status === "migration_required";
+
+  useEffect(() => {
+    if (status !== "new_database") {
+      setBackupCatalog(null);
+      setSelectedBackup("");
+      setBackupCatalogError("");
+      return;
+    }
+
+    let cancelled = false;
+    invoke<RecoveryBackupCatalog>("list_recovery_backups")
+      .then(catalog => {
+        if (cancelled) return;
+        setBackupCatalog(catalog);
+        setSelectedBackup(catalog.backups.length === 1 ? catalog.backups[0].filename : "");
+        setBackupCatalogError("");
+      })
+      .catch(cause => {
+        if (cancelled) return;
+        setBackupCatalogError(String(cause));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -29,11 +69,11 @@ export default function DatabaseSecurityView({ status, onReady, onStatusChange }
     }
     setWorking(true);
     try {
-      const restoringPortableBackup = status === "new_database" && backupPath.trim().length > 0;
+      const restoringPortableBackup = status === "new_database" && selectedBackup.length > 0;
       if (restoringPortableBackup) {
         await invoke("recover_database_key", {
           recoveryPhrase: phrase,
-          backupPath: backupPath.trim(),
+          backupFilename: selectedBackup,
         });
       } else if (creating) {
         await invoke("initialize_database_security", { recoveryPhrase: phrase });
@@ -42,7 +82,7 @@ export default function DatabaseSecurityView({ status, onReady, onStatusChange }
       }
       setPhrase("");
       setConfirmation("");
-      setBackupPath("");
+      setSelectedBackup("");
       onReady();
     } catch (cause) {
       setError(String(cause));
@@ -79,18 +119,47 @@ export default function DatabaseSecurityView({ status, onReady, onStatusChange }
           </p>
         )}
         {status === "new_database" && (
-          <label className="mt-4 block text-sm font-medium text-primary">
-            Ruta a un backup cifrado .gbackup (opcional)
-            <input
-              className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-primary outline-none focus:border-accent"
-              onChange={event => setBackupPath(event.target.value)}
-              placeholder={"Ej.: C:\\Users\\Usuario\\Desktop\\gestaerp_....gbackup"}
-              value={backupPath}
-            />
-            <span className="mt-1 block text-xs text-secondary">
-              Si restauras desde otro equipo, usa la misma frase de recuperación del backup.
-            </span>
-          </label>
+          <div className="mt-4 rounded-md border border-border bg-surface p-3">
+            <label className="block text-sm font-medium text-primary" htmlFor="recovery-backup">
+              Restaurar desde un backup cifrado (opcional)
+            </label>
+            {backupCatalog === null && !backupCatalogError ? (
+              <p className="mt-2 text-sm text-secondary">Buscando backups...</p>
+            ) : backupCatalog?.backups.length ? (
+              <select
+                className="mt-2 w-full rounded-md border border-border bg-panel px-3 py-2 text-primary outline-none focus:border-accent"
+                id="recovery-backup"
+                onChange={event => setSelectedBackup(event.target.value)}
+                value={selectedBackup}
+              >
+                <option value="">Crear una base nueva</option>
+                {backupCatalog.backups.map(backup => (
+                  <option key={backup.filename} value={backup.filename}>
+                    {backup.filename} · {backup.created}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="mt-2 text-sm text-secondary">
+                No se encontraron backups cifrados. Puedes crear una base nueva.
+              </p>
+            )}
+            <p className="mt-2 break-all text-xs text-secondary">
+              Para restaurar desde otro equipo, copia el archivo .gbackup a:{" "}
+              <code>{backupCatalog?.directory ?? "la carpeta de datos de GestaERP"}</code>.
+              Se detectará automáticamente. Usa la misma frase de recuperación del backup.
+            </p>
+            {backupCatalog?.backups.length && backupCatalog.backups.length > 1 && !selectedBackup && (
+              <p className="mt-2 text-xs text-warning">
+                Hay varios backups; selecciona explícitamente cuál quieres restaurar.
+              </p>
+            )}
+            {backupCatalogError && (
+              <p className="mt-2 text-xs text-danger" role="alert">
+                No se pudo buscar backups: {backupCatalogError}
+              </p>
+            )}
+          </div>
         )}
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium text-primary">
@@ -125,7 +194,7 @@ export default function DatabaseSecurityView({ status, onReady, onStatusChange }
           >
             {working
               ? "Procesando de forma segura..."
-              : status === "new_database" && backupPath.trim()
+              : status === "new_database" && selectedBackup
                 ? "Restaurar backup y continuar"
                 : creating
                   ? "Cifrar y continuar"

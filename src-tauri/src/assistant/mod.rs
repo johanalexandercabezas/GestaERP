@@ -1,15 +1,16 @@
 //! Dominio GestaHelp — Asistente digital del ERP.
 //!
-//! Principios invariables (aplican desde la Fase 0):
+//! Principios del asistente:
 //! - NUNCA genera ni ejecuta SQL dinámico. Cero SQL creado por el asistente.
 //! - Toda acción termina en una función de dominio Rust existente
 //!   (`crate::sales`, `crate::customers`, `crate::products`, ...) sin duplicar
 //!   lógica ni validaciones.
 //! - Flujo: Frontend → command `gestahelp::chat` → intent_engine → planner /
 //!   executor → servicios Rust → SQLite.
-//! - El LLM es un componente REEMPLAZABLE: hoy hay un RuleEngine (motores en
-//!   reglas); mañana un modelo local (Gemma/Qwen/Phi) o un proveedor — sin
-//!   reescribir la arquitectura, vía la misma interfaz.
+//! - Actualmente funciona con un clasificador por reglas, base de conocimiento
+//!   local y consultas tipadas; no integra un LLM ni transmite el chat.
+//! - La interfaz permite evaluar otro motor en el futuro sin concederle SQL
+//!   dinámico ni acceso directo a la base de datos.
 //!
 //! Estructura (visión del producto):
 //!   intent_engine   → Motor 1 · Comprensión (qué quiere el usuario)

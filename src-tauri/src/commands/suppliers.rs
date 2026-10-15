@@ -19,11 +19,14 @@ pub fn create_supplier(
     offers_credit: bool,
     credit_days: i64,
     credit_limit: f64,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<i64, String> {
     auth_guard::require_admin(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::suppliers::create_supplier(
-        &conn,
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let id = crate::suppliers::create_supplier(
+        &transaction,
         &name,
         nit.as_deref(),
         phone.as_deref(),
@@ -39,7 +42,19 @@ pub fn create_supplier(
         credit_days,
         credit_limit,
     )
-    .map_err(|e| format!("Error al crear proveedor: {}", e))
+    .map_err(|e| format!("Error al crear proveedor: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "supplier",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar el registro del proveedor: {e}"))?;
+    Ok(id)
 }
 
 #[tauri::command]
@@ -68,9 +83,12 @@ pub fn update_supplier(
     offers_credit: bool,
     credit_days: i64,
     credit_limit: f64,
+    processing_basis: crate::personal_data::ProcessingBasisInput,
 ) -> Result<(), String> {
     auth_guard::require_admin(&state)?;
+    let user = auth_guard::current_user(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let transaction = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let s = crate::suppliers::Supplier {
         id,
         name,
@@ -87,9 +105,21 @@ pub fn update_supplier(
         offers_credit,
         credit_days,
         credit_limit,
+        processing_basis: None,
     };
-    crate::suppliers::update_supplier(&conn, &s)
-        .map_err(|e| format!("Error al actualizar proveedor: {}", e))
+    crate::suppliers::update_supplier(&transaction, &s)
+        .map_err(|e| format!("Error al actualizar proveedor: {}", e))?;
+    crate::personal_data::record_basis(
+        &transaction,
+        "supplier",
+        id,
+        &processing_basis,
+        user.id,
+        &user.full_name,
+    )?;
+    transaction
+        .commit()
+        .map_err(|e| format!("No se pudo confirmar la actualización del proveedor: {e}"))
 }
 
 #[tauri::command]

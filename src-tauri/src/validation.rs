@@ -107,6 +107,34 @@ pub fn validate_phone(value: &str) -> Result<String, String> {
     Ok(cleaned)
 }
 
+pub fn validate_nit_digits(value: &str, required: bool) -> Result<(), String> {
+    validate_ascii_digits(value, "El NIT", 8, 10, required)
+}
+
+pub fn validate_phone_digits(value: &str, required: bool) -> Result<(), String> {
+    validate_ascii_digits(value, "El teléfono", 7, 15, required)
+}
+
+fn validate_ascii_digits(
+    value: &str,
+    field: &str,
+    min_length: usize,
+    max_length: usize,
+    required: bool,
+) -> Result<(), String> {
+    if !required && value.is_empty() {
+        return Ok(());
+    }
+    if !(min_length..=max_length).contains(&value.len())
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(format!(
+            "{field} debe contener entre {min_length} y {max_length} dígitos, sin puntos, guiones ni espacios."
+        ));
+    }
+    Ok(())
+}
+
 /// Valida un NIT colombiano (formato simple: dígitos + posible guión).
 #[allow(dead_code)]
 pub fn validate_nit(value: &str) -> Result<String, String> {
@@ -224,6 +252,16 @@ mod tests {
         assert!(validate_password("12345678").is_err());
         // Solo minúsculas (sin mayúsculas ni números) debe fallar
         assert!(validate_password("solominusculas").is_err());
+    }
+
+    #[test]
+    fn business_nit_and_phone_accept_digits_only() {
+        assert!(validate_nit_digits("9001234567", true).is_ok());
+        assert!(validate_nit_digits("90012345A7", true).is_err());
+        assert!(validate_nit_digits("900.123.456-7", true).is_err());
+        assert!(validate_phone_digits("3001234567", true).is_ok());
+        assert!(validate_phone_digits("+573001234567", true).is_err());
+        assert!(validate_phone_digits("", false).is_ok());
     }
 
     #[test]

@@ -34,10 +34,14 @@ const AccountingView = lazy(() => import("./views/AccountingView"));
 const ForceOpenCashModal = lazy(() => import("./views/ForceOpenCashModal"));
 const HelpAssistant = lazy(() => import("./views/HelpAssistant"));
 const GestaHelpView = lazy(() => import("./views/GestaHelpView"));
+const LegalDocumentsView = lazy(() => import("./views/LegalDocumentsView"));
 import { useThemeStore } from "./stores/theme-store";
 import PremiumToaster from "./components/ui/PremiumToast";
+import UpdaterNotice from "./components/UpdaterNotice";
 import ErrorBoundary from "./components/ErrorBoundary";
 import DatabaseSecurityView from "./views/DatabaseSecurityView";
+import LegalAcceptanceView from "./views/LegalAcceptanceView";
+import type { LegalAcceptanceStatus } from "./types/legal";
 import { openExternal } from "./utils/openExternal";
 import {
   LayoutDashboard, Package, ShoppingCart, ClipboardList, Building2,
@@ -48,7 +52,7 @@ import {
 import type { UserInfo, LicenseInfo, NotificationItem } from "./types/auth";
 import { ROLES } from "./types/auth";
 
-type View = "dashboard" | "products" | "pos" | "purchases" | "services" | "quotations" | "payables" | "kardex" | "suppliers" | "cash" | "backups" | "customers" | "reports" | "users" | "expenses" | "receivables" | "employees" | "payroll" | "physical_inventory" | "audit" | "accounting" | "calendar" | "acerca" | "gestahelp";
+type View = "dashboard" | "products" | "pos" | "purchases" | "services" | "quotations" | "payables" | "kardex" | "suppliers" | "cash" | "backups" | "customers" | "reports" | "users" | "expenses" | "receivables" | "employees" | "payroll" | "physical_inventory" | "audit" | "accounting" | "calendar" | "acerca" | "gestahelp" | "legal";
 
 const menuItems = [
   { view: "dashboard" as View, icon: LayoutDashboard, label: "Dashboard" },
@@ -68,11 +72,13 @@ const menuItems = [
   { view: "cash" as View, icon: Banknote, label: "Caja" },
   { view: "expenses" as View, icon: Receipt, label: "Gastos" },
   { view: "receivables" as View, icon: HandCoins, label: "Cuentas por Cobrar" },
+  { view: "payables" as View, icon: HandCoins, label: "Cuentas por Pagar" },
   { view: "reports" as View, icon: FileBarChart, label: "Reportes" },
   { view: "backups" as View, icon: HardDrive, label: "Backups" },
   { view: "calendar" as View, icon: Calendar, label: "Calendario" },
   { view: "users" as View, icon: UserCog, label: "Usuarios", adminOnly: true },
   { view: "acerca" as View, icon: Info, label: "Acerca de" },
+  { view: "legal" as View, icon: Shield, label: "Legal y privacidad" },
   { view: "gestahelp" as View, icon: Sparkles, label: "⭐ GestaHelp" },
 ];
 
@@ -83,6 +89,9 @@ function App() {
   const [businessName, setBusinessName] = useState("Mi Negocio");
   const [loadingSession, setLoadingSession] = useState(true);
   const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [assistantContextView, setAssistantContextView] = useState<View>("dashboard");
+  const [legalStatus, setLegalStatus] = useState<LegalAcceptanceStatus | null>(null);
+  const [legalLoadError, setLegalLoadError] = useState<string | null>(null);
   const [cashOpen, setCashOpen] = useState<boolean | null>(null);
   const [forceCash, setForceCash] = useState(false);
   const [license, setLicense] = useState<LicenseInfo | null>(null);
@@ -93,6 +102,12 @@ function App() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const { theme, toggleTheme, loadTheme } = useThemeStore();
+
+  useEffect(() => {
+    const disableContextMenu = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener("contextmenu", disableContextMenu);
+    return () => document.removeEventListener("contextmenu", disableContextMenu);
+  }, []);
 
   useEffect(() => {
     invoke<{ status: string }>("get_database_security_state")
@@ -123,9 +138,10 @@ function App() {
           invoke<LicenseInfo>("get_license_status"),
           invoke<string | null>("get_business_logo"),
           invoke<string | null>("get_setting", { key: "nombre_negocio" }),
+          invoke<LegalAcceptanceStatus>("get_legal_acceptance_status"),
         ]);
 
-        const [setupResult, licenseResult, logoResult, nameResult] = results;
+        const [setupResult, licenseResult, logoResult, nameResult, legalResult] = results;
 
         if (setupResult.status === "fulfilled") setSetupComplete(setupResult.value);
         else setSetupComplete(false);
@@ -133,6 +149,13 @@ function App() {
         if (licenseResult.status === "fulfilled" && licenseResult.value) setLicense(licenseResult.value);
         if (logoResult.status === "fulfilled" && logoResult.value) setLogoBase64(logoResult.value);
         if (nameResult.status === "fulfilled" && nameResult.value) setBusinessName(nameResult.value);
+        if (legalResult.status === "fulfilled") {
+          setLegalStatus(legalResult.value);
+          setLegalLoadError(null);
+        } else {
+          setLegalStatus(null);
+          setLegalLoadError(String(legalResult.reason));
+        }
       } catch {
         setSetupComplete(false);
       } finally {
@@ -233,6 +256,16 @@ function App() {
       .catch(() => { setLicense(null); setShowLicenseManager(false); });
   };
 
+  const reloadLegalStatus = async () => {
+    setLegalStatus(null);
+    setLegalLoadError(null);
+    try {
+      setLegalStatus(await invoke<LegalAcceptanceStatus>("get_legal_acceptance_status"));
+    } catch (error) {
+      setLegalLoadError(String(error));
+    }
+  };
+
   // ═══════════════════════════════════════════
   // RENDER GATES — Nuevo flujo
   // ═══════════════════════════════════════════
@@ -269,9 +302,38 @@ function App() {
     );
   }
 
+  if (legalLoadError) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-danger">No se pudo comprobar la aceptación legal: {legalLoadError}</p>
+        <button onClick={reloadLegalStatus} className="px-4 py-2 rounded-lg bg-accent text-white">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (!legalStatus) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!legalStatus.terms_accepted || !legalStatus.privacy_notice_acknowledged) {
+    return <LegalAcceptanceView status={legalStatus} onAccepted={setLegalStatus} />;
+  }
+
   // Si está en modo "cambiar plan" desde el dashboard
   if (showLicenseManager) {
-    return <LicenseActivationView onActivated={handleLicenseActivated} />;
+    return (
+      <LicenseActivationView
+        onActivated={handleLicenseActivated}
+        onBack={() => setShowLicenseManager(false)}
+      />
+    );
   }
 
   // GATE 1: Licencia primero
@@ -313,6 +375,10 @@ function App() {
   // FIX: Eliminado useMemo que violaba las reglas de hooks al estar después de
   // los return de los gates. Ahora es una variable normal calculada en cada render.
   let currentViewComponent;
+  const alwaysAvailableViews = new Set<View>(["acerca", "calendar", "services", "gestahelp", "legal"]);
+  const availableViews = menuItems
+    .filter((item) => allowed.includes(item.view) || alwaysAvailableViews.has(item.view))
+    .map((item) => item.view);
   if (currentView === "dashboard") currentViewComponent = <DashboardView />;
   else if (currentView === "products" && allowed.includes("products")) currentViewComponent = <ProductsView role={currentUser.role} />;
   else if (currentView === "pos" && allowed.includes("pos")) currentViewComponent = <POSView userId={currentUser.id} />;
@@ -336,12 +402,19 @@ function App() {
   else if (currentView === "calendar") currentViewComponent = <CalendarView />;
   else if (currentView === "users" && allowed.includes("users") && currentUser.role === ROLES.ADMIN) currentViewComponent = <UsersView />;
   else if (currentView === "acerca") currentViewComponent = <AcercaView />;
-  else if (currentView === "gestahelp") currentViewComponent = <GestaHelpView view={currentView} />;
+  else if (currentView === "legal") currentViewComponent = <LegalDocumentsView status={legalStatus} />;
+  else if (currentView === "gestahelp") currentViewComponent = (
+    <GestaHelpView view={assistantContextView} availableViews={availableViews} onNavigate={(target) => {
+      const destination = menuItems.find((item) => item.view === target);
+      if (destination && availableViews.includes(destination.view)) setCurrentView(destination.view);
+    }} />
+  );
   else currentViewComponent = <DashboardView />;
 
   return (
     <div className="flex h-screen bg-surface text-primary">
       <PremiumToaster />
+      <UpdaterNotice />
 
       <motion.aside
         initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
@@ -393,11 +466,14 @@ function App() {
 
           {menuItems.map((item, index) => {
             if (item.adminOnly && currentUser.role !== ROLES.ADMIN) return null;
-            if (!allowed.includes(item.view) && item.view !== "acerca" && item.view !== "calendar" && item.view !== "services" && item.view !== "gestahelp") return null;
+            if (!allowed.includes(item.view) && item.view !== "acerca" && item.view !== "calendar" && item.view !== "services" && item.view !== "gestahelp" && item.view !== "legal") return null;
             const Icon = item.icon;
             return (
               <motion.button key={item.view} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03 }}
-                whileHover={{ scale: 1.02, x: 4 }} whileTap={{ scale: 0.98 }} onClick={() => setCurrentView(item.view)}
+                whileHover={{ scale: 1.02, x: 4 }} whileTap={{ scale: 0.98 }} onClick={() => {
+                  if (item.view !== "gestahelp") setAssistantContextView(item.view);
+                  setCurrentView(item.view);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${currentView === item.view ? "bg-accent/20 text-accent font-medium" : "text-secondary hover:bg-surface"}`}
                 title={sidebarCollapsed ? item.label : undefined}>
                 <Icon size={18} />{!sidebarCollapsed && item.label}

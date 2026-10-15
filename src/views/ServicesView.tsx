@@ -8,6 +8,11 @@ import Skeleton from "../components/ui/Skeleton";
 import NumericInput from "../components/ui/NumericInput";
 import { formatCOP } from "../utils/formatCurrency";
 import { Wrench, Search, Plus, Edit3, EyeOff, ToggleRight, ShoppingCart, Trash2, CreditCard, X, User } from "lucide-react";
+import PersonalDataBasisFields from "../components/PersonalDataBasisFields";
+import {
+  emptyProcessingBasis,
+  type ProcessingBasisInput,
+} from "../types/personalData";
 
 interface Service {
   id: number;
@@ -80,6 +85,8 @@ export default function ServicesView() {
   const [newCustDoc, setNewCustDoc] = useState("");
   const [newCustPhone, setNewCustPhone] = useState("");
   const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustomerBasis, setNewCustomerBasis] =
+    useState<ProcessingBasisInput>(emptyProcessingBasis);
 
   const filtered = services.filter(
     s => s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -237,11 +244,13 @@ export default function ServicesView() {
         docNumber: newCustDoc.trim() || "000",
         phone: newCustPhone.trim() || null, email: newCustEmail.trim() || null,
         city: null, address: null,
+        processingBasis: newCustomerBasis,
       });
       setCustomerId(id);
       setCustomerName(newCustName.trim().toUpperCase());
       setShowCustomerModal(false);
       setNewCustName(""); setNewCustDoc(""); setNewCustPhone(""); setNewCustEmail("");
+      setNewCustomerBasis(emptyProcessingBasis());
       loadCustomers();
       showToast("Cliente creado", "success");
     } catch (e) {
@@ -536,7 +545,7 @@ export default function ServicesView() {
                     <option value="">Seleccionar cliente...</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <button onClick={() => setShowCustomerModal(true)}
+                  <button onClick={() => { setNewCustomerBasis(emptyProcessingBasis()); setShowCustomerModal(true); }}
                     className="px-3 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm"><User size={16} /></button>
                 </div>
               )}
@@ -554,7 +563,7 @@ export default function ServicesView() {
       )}
 
       <PremiumModal open={showCustomerModal} onClose={() => setShowCustomerModal(false)}
-        title="Nuevo cliente rápido" size="sm">
+        title="Nuevo cliente rápido" size="lg">
         <div className="space-y-3">
           <div>
             <label className="block text-sm text-secondary mb-1">Nombre *</label>
@@ -576,6 +585,11 @@ export default function ServicesView() {
             <input value={newCustEmail} onChange={e => setNewCustEmail(e.target.value)}
               className="w-full px-3 py-2 bg-input border border-theme rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
+          <PersonalDataBasisFields
+            subject="customer"
+            value={newCustomerBasis}
+            onChange={setNewCustomerBasis}
+          />
           <div className="flex justify-end gap-3 pt-2">
             <PremiumButton variant="ghost" onClick={() => setShowCustomerModal(false)}>Cancelar</PremiumButton>
             <PremiumButton onClick={quickCreateCustomer}>Crear y seleccionar</PremiumButton>

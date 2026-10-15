@@ -271,7 +271,7 @@ export default function HelpAssistant() {
 
           {/* Footer */}
           <div className="p-3 border-t border-theme text-center text-xs text-secondary bg-surface-elevated">
-            GestaERP V 1.0.0 © 2026 — GestaSoftTech
+            GestaERP © 2026 — GestaSoftTech
           </div>
         </div>
       )}

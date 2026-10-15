@@ -1,8 +1,7 @@
 //! Permisos por herramienta.
 //!
-//! Fase 0: define los roles válidos del sistema (fuente única para GestaHelp).
-//! Fases 1+: cada herramienta registrada declara el rol mínimo que puede
-//! ejecutarla, alineada con `auth_guard::require_admin` / `require_auth`.
+//! Define roles y permisos para las herramientas registradas de GestaHelp,
+//! alineados con `auth_guard::require_admin` / `require_auth`.
 //!
 //! Regla de producto: GestaHelp nunca elude los permisos existentes; toda
 //! herramienta de escritura exige el mismo rol que el comando que ejecuta.

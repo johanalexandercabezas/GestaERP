@@ -1,38 +1,23 @@
 //! Registro tipado de herramientas de negocio.
 //!
 //! En lugar de permitir SQL arbitrario, GestaHelp solo puede ejecutar las
-//! herramientas registradas aquí. Cada herramienta es una cáscara que delega en
-//! una función de dominio Rust existente (nunca genera SQL).
-//!
-//! Fase 1: herramientas de SOLO LECTURA (consulta/análisis). Fase 2+ añade
-//! herramientas de escritura que pasan por confirmación (`planner`/`executor`).
+//! herramientas registradas aquí. Cada herramienta delega en una función de
+//! dominio Rust existente.
 
 /// Herramientas de negocio disponibles para GestaHelp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
-    /// Ventas del día de hoy.
     GetSalesToday,
-    /// Gastos del día de hoy.
     GetExpensesToday,
-    /// Saldo actual de caja.
     GetCashBalance,
-    /// Resumen general del negocio (mes en curso).
     GetMonthlyBusiness,
-    /// Productos por debajo del stock mínimo.
     GetLowStock,
-    /// Top productos más vendidos del mes.
     GetTopProducts,
-    /// Cantidad de clientes y proveedores.
     GetClientesProveedores,
-    /// Listado de ventas recientes.
     GetRecentSales,
-    /// Búsqueda de producto por nombre/SKU.
     SearchProduct,
-    /// Cuentas por cobrar con saldo pendiente.
     GetOverdueReceivables,
-    /// Crear un cliente (escritura — requiere confirmación).
     CreateCustomer,
-    /// Registrar un gasto (escritura — requiere confirmación).
     RegisterExpense,
 }
 
@@ -54,6 +39,39 @@ impl Tool {
             Tool::RegisterExpense => "tool_register_expense",
         }
     }
+
+    pub fn navigation_target(&self) -> &'static str {
+        match self {
+            Tool::GetSalesToday | Tool::GetRecentSales => "pos",
+            Tool::GetExpensesToday | Tool::RegisterExpense => "expenses",
+            Tool::GetCashBalance => "cash",
+            Tool::GetMonthlyBusiness => "dashboard",
+            Tool::GetLowStock | Tool::GetTopProducts | Tool::SearchProduct => "products",
+            Tool::GetClientesProveedores => "customers",
+            Tool::GetOverdueReceivables => "receivables",
+            Tool::CreateCustomer => "customers",
+        }
+    }
+}
+
+pub fn navigation_target_for_name(name: &str) -> Option<&'static str> {
+    [
+        Tool::GetSalesToday,
+        Tool::GetExpensesToday,
+        Tool::GetCashBalance,
+        Tool::GetMonthlyBusiness,
+        Tool::GetLowStock,
+        Tool::GetTopProducts,
+        Tool::GetClientesProveedores,
+        Tool::GetRecentSales,
+        Tool::SearchProduct,
+        Tool::GetOverdueReceivables,
+        Tool::CreateCustomer,
+        Tool::RegisterExpense,
+    ]
+    .into_iter()
+    .find(|tool| tool.name() == name)
+    .map(|tool| tool.navigation_target())
 }
 
 /// Colección de herramientas disponibles (consulta para informes/UI).
@@ -90,7 +108,6 @@ impl ToolRegistry {
         }
     }
 
-    /// Lista todas las herramientas registradas.
     pub fn list(&self) -> &[&'static str] {
         &self.tools
     }

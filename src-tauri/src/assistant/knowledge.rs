@@ -143,9 +143,9 @@ const KB_B: &[KbEntry] = &[
             "clientes",
         ],
         title: "Clientes",
-        answer: "Puedes crear un **cliente** en **Clientes** o pedírselo a GestaHelp (por \
-                 ejemplo: *\"crea un cliente Comercial ABC con nit 901234567\"*), que pedirá \
-                 confirmación antes de guardarlo. Se usan para ventas a crédito y reportes.",
+        answer: "Registra el cliente desde el módulo **Clientes**. Allí debes indicar la \
+                 base y finalidad del tratamiento de datos para dejar la trazabilidad junto \
+                 con el registro. GestaHelp te puede orientar, pero no crea clientes directamente.",
     },
 ];
 
@@ -224,4 +224,61 @@ pub fn explain(message: &str) -> Option<String> {
     }
 
     best.map(|(entry, _)| format!("📘 **{}**\n\n{}", entry.title, entry.answer))
+}
+
+pub fn suggested_view(message: &str) -> Option<&'static str> {
+    let message = message.to_lowercase();
+    if contains_any(&message, &["caja", "arqueo", "cierre de caja"]) {
+        Some("cash")
+    } else if contains_any(&message, &["nómina", "nomina", "empleado", "empleados"]) {
+        Some("payroll")
+    } else if contains_any(&message, &["compra", "compras", "proveedor", "proveedores"]) {
+        Some("purchases")
+    } else if contains_any(&message, &["cotización", "cotizacion", "presupuesto"]) {
+        Some("quotations")
+    } else if contains_any(
+        &message,
+        &["kardex", "inventario", "stock", "producto", "productos"],
+    ) {
+        Some("products")
+    } else if contains_any(&message, &["cartera", "por cobrar", "abono", "crédito"]) {
+        Some("receivables")
+    } else if contains_any(
+        &message,
+        &["cuenta por pagar", "por pagar", "pagar a proveedor"],
+    ) {
+        Some("payables")
+    } else if contains_any(&message, &["cliente", "clientes"]) {
+        Some("customers")
+    } else if contains_any(&message, &["gasto", "gastos"]) {
+        Some("expenses")
+    } else if contains_any(&message, &["reporte", "reportes", "exportar"]) {
+        Some("reports")
+    } else {
+        None
+    }
+}
+
+fn contains_any(text: &str, keys: &[&str]) -> bool {
+    keys.iter().any(|key| text.contains(key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_procedures_open_the_related_module() {
+        assert_eq!(suggested_view("¿Cómo cierro la caja?"), Some("cash"));
+        assert_eq!(
+            suggested_view("¿Cómo registro una compra?"),
+            Some("purchases")
+        );
+        assert_eq!(suggested_view("¿Cómo genero nómina?"), Some("payroll"));
+    }
+
+    #[test]
+    fn unmatched_topics_do_not_suggest_an_unrelated_module() {
+        assert_eq!(suggested_view("¿Cómo funciona GestaHelp?"), None);
+    }
 }

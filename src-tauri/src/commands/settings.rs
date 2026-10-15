@@ -17,6 +17,25 @@ pub fn get_database_security_state(
 }
 
 #[tauri::command]
+pub fn list_recovery_backups(
+    state: State<AppState>,
+) -> Result<crate::backup::RecoveryBackupCatalog, String> {
+    if state.db.is_initialized()? {
+        return Err(
+            "La base ya está inicializada; no se necesita recuperar un backup.".to_string(),
+        );
+    }
+    let security_state = crate::db::database_security_state()?;
+    if security_state.status != "new_database" {
+        return Err(
+            "Los backups solo se pueden descubrir durante la configuración de una base nueva."
+                .to_string(),
+        );
+    }
+    crate::backup::recovery_backup_catalog()
+}
+
+#[tauri::command]
 pub fn initialize_database_security(
     state: State<AppState>,
     recovery_phrase: String,
@@ -30,10 +49,11 @@ pub fn initialize_database_security(
 pub fn recover_database_key(
     state: State<AppState>,
     recovery_phrase: String,
-    backup_path: Option<String>,
+    backup_filename: Option<String>,
 ) -> Result<(), String> {
     let recovery_phrase = Zeroizing::new(recovery_phrase);
-    let connection = crate::db::recover_database(recovery_phrase.as_str(), backup_path.as_deref())?;
+    let connection =
+        crate::db::recover_database(recovery_phrase.as_str(), backup_filename.as_deref())?;
     state.db.initialize(connection)
 }
 
@@ -78,7 +98,14 @@ pub fn is_setup_complete(state: State<AppState>) -> Result<bool, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let nombre = crate::db::get_setting(&conn, "nombre_negocio");
     let nit = crate::db::get_setting(&conn, "nit");
-    Ok(nombre.is_some() && nit.is_some())
+    let has_admin = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE role = 'admin' AND active = 1)",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("No se pudo comprobar el administrador inicial: {error}"))?;
+    Ok(nombre.is_some() && nit.is_some() && has_admin)
 }
 
 #[tauri::command]
@@ -96,11 +123,20 @@ pub fn save_business_info(
     // en cualquier otro caso se requiere admin.
     let setup_done = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        crate::db::get_setting(&conn, "nombre_negocio").is_some()
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE role = 'admin' AND active = 1)",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("No se pudo verificar el estado de configuración: {error}"))?
     };
     if setup_done {
         auth_guard::require_admin(&state)?;
     }
+    let nit = nit.trim();
+    let telefono = telefono.trim();
+    crate::validation::validate_nit_digits(nit, true)?;
+    crate::validation::validate_phone_digits(telefono, true)?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, "nombre_negocio", &nombre).map_err(|e| e.to_string())?;
@@ -146,6 +182,12 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
     if PROTECTED_KEYS.iter().any(|p| key.eq_ignore_ascii_case(p)) {
         return Err("Clave de configuración protegida".to_string());
     }
+    if key.eq_ignore_ascii_case("nit") {
+        crate::validation::validate_nit_digits(&value, false)?;
+    }
+    if key.eq_ignore_ascii_case("phone") || key.eq_ignore_ascii_case("telefono") {
+        crate::validation::validate_phone_digits(&value, false)?;
+    }
     auth_guard::require_admin(&state)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::db::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
@@ -154,7 +196,18 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
 /// Sube el logo del negocio: recibe bytes de imagen, redimensiona, guarda en disco y persiste ruta en DB
 #[tauri::command]
 pub fn upload_business_logo(state: State<AppState>, logo_bytes: Vec<u8>) -> Result<String, String> {
-    auth_guard::require_admin(&state)?;
+    let has_admin = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE role = 'admin' AND active = 1)",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("No se pudo verificar el estado de configuración: {error}"))?
+    };
+    if has_admin {
+        auth_guard::require_admin(&state)?;
+    }
     use image::imageops::FilterType;
     use image::ImageFormat;
     use std::io::Cursor;

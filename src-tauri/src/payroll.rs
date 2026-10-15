@@ -29,6 +29,7 @@ pub struct Employee {
     pub ccf: Option<String>,
     pub fondo_cesantias: Option<String>,
     pub active: bool,
+    pub processing_basis: Option<crate::personal_data::ProcessingBasisRecord>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -101,9 +102,36 @@ pub fn create_employee(
 
 pub fn list_employees(conn: &Connection) -> Result<Vec<Employee>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, doc_type, doc_number, position, base_salary, transport_allowance, has_social_security, payment_frequency, risk_level, phone, email, city, department, address, hire_date, eps, arl, afp, ccf, fondo_cesantias, active FROM employees ORDER BY name",
+        "SELECT e.id, e.name, e.doc_type, e.doc_number, e.position, e.base_salary,
+                e.transport_allowance, e.has_social_security, e.payment_frequency, e.risk_level,
+                e.phone, e.email, e.city, e.department, e.address, e.hire_date, e.eps, e.arl,
+                e.afp, e.ccf, e.fondo_cesantias, e.active,
+                r.basis, r.basis_detail, r.purpose, r.effective_date,
+                r.evidence_method, r.evidence_reference, r.recorded_at, r.recorded_by_name
+         FROM employees e
+         LEFT JOIN personal_data_processing_records r ON r.id = (
+             SELECT id FROM personal_data_processing_records
+             WHERE subject_type = 'employee' AND subject_id = e.id
+             ORDER BY id DESC LIMIT 1
+         )
+         ORDER BY e.name",
     )?;
     let rows = stmt.query_map([], |row| {
+        let basis: Option<String> = row.get(22)?;
+        let processing_basis = basis
+            .map(|basis| {
+                Ok::<_, rusqlite::Error>(crate::personal_data::ProcessingBasisRecord {
+                    basis,
+                    basis_detail: row.get(23)?,
+                    purpose: row.get(24)?,
+                    effective_date: row.get(25)?,
+                    evidence_method: row.get(26)?,
+                    evidence_reference: row.get(27)?,
+                    recorded_at: row.get(28)?,
+                    recorded_by_name: row.get(29)?,
+                })
+            })
+            .transpose()?;
         Ok(Employee {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -127,6 +155,7 @@ pub fn list_employees(conn: &Connection) -> Result<Vec<Employee>> {
             ccf: row.get(19)?,
             fondo_cesantias: row.get(20)?,
             active: row.get::<_, i64>(21)? != 0,
+            processing_basis,
         })
     })?;
     rows.collect()
@@ -439,6 +468,7 @@ mod tests {
             ccf: None,
             fondo_cesantias: None,
             active: true,
+            processing_basis: None,
         }
     }
 
@@ -527,6 +557,20 @@ mod tests {
                 fondo_cesantias TEXT,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE TABLE personal_data_processing_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject_type TEXT NOT NULL,
+                subject_id INTEGER NOT NULL,
+                basis TEXT NOT NULL,
+                basis_detail TEXT NOT NULL,
+                purpose TEXT NOT NULL,
+                effective_date TEXT NOT NULL,
+                evidence_method TEXT NOT NULL,
+                evidence_reference TEXT NOT NULL,
+                recorded_at TEXT NOT NULL,
+                recorded_by_user_id INTEGER,
+                recorded_by_name TEXT NOT NULL
             );
             CREATE TABLE payroll_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

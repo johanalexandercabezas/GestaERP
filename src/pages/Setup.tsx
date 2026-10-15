@@ -20,9 +20,9 @@ export default function Setup({ onComplete }: SetupProps) {
     invoke<Record<string, string>>("get_all_settings")
       .then((settings) => {
         if (settings.business_name) setBusinessName(settings.business_name);
-        if (settings.nit) setNit(settings.nit);
+        if (settings.nit) setNit(settings.nit.replace(/\D/g, ""));
         if (settings.address) setAddress(settings.address);
-        if (settings.phone) setPhone(settings.phone);
+        if (settings.phone) setPhone(settings.phone.replace(/\D/g, ""));
         if (settings.city) setCity(settings.city);
         if (settings.iva_responsable === "1") setIvaResponsable(true);
         setLoading(false);
@@ -93,8 +93,11 @@ export default function Setup({ onComplete }: SetupProps) {
             <input
               type="text"
               value={nit}
-              onChange={(e) => setNit(e.target.value)}
-              placeholder="Ej: 900123456-7"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={10}
+              onChange={(e) => setNit(e.target.value.replace(/\D/g, ""))}
+              placeholder="Ej: 9001234567"
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
             />
           </div>
@@ -134,8 +137,11 @@ export default function Setup({ onComplete }: SetupProps) {
           <input
             type="text"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Ej: 601 234 5678"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={15}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+            placeholder="Ej: 6012345678"
             className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
           />
         </div>
@@ -150,11 +156,15 @@ export default function Setup({ onComplete }: SetupProps) {
             className="mt-0.5 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
           <div>
-            <label htmlFor="iva" className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
+            <label
+              htmlFor="iva"
+              className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
+            >
               Responsable de IVA
             </label>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Marca esta opción si según tu RUT eres responsable de IVA. Esto activará el cálculo del 19% en ventas y compras.
+              Marca esta opción si según tu RUT eres responsable de IVA. Esto activará el cálculo
+              del 19% en ventas y compras.
             </p>
           </div>
         </div>
@@ -166,7 +176,11 @@ export default function Setup({ onComplete }: SetupProps) {
             disabled={saving || !businessName.trim()}
             className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
           >
-            {saving ? "Guardando..." : saved ? "✅ Guardado correctamente" : "Guardar configuración"}
+            {saving
+              ? "Guardando..."
+              : saved
+                ? "✅ Guardado correctamente"
+                : "Guardar configuración"}
           </button>
 
           {saved && onComplete && (

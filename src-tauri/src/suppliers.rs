@@ -18,6 +18,7 @@ pub struct Supplier {
     pub offers_credit: bool,
     pub credit_days: i64,
     pub credit_limit: f64,
+    pub processing_basis: Option<crate::personal_data::ProcessingBasisRecord>,
 }
 
 pub fn create_supplier(
@@ -52,9 +53,35 @@ pub fn create_supplier(
 
 pub fn list_suppliers(conn: &Connection) -> Result<Vec<Supplier>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, nit, phone, email, doc_type, city, address, payment_method, bank_name, bank_account, iva_responsible, offers_credit, credit_days, credit_limit FROM suppliers ORDER BY name",
+        "SELECT s.id, s.name, s.nit, s.phone, s.email, s.doc_type, s.city, s.address,
+                s.payment_method, s.bank_name, s.bank_account, s.iva_responsible,
+                s.offers_credit, s.credit_days, s.credit_limit,
+                r.basis, r.basis_detail, r.purpose, r.effective_date,
+                r.evidence_method, r.evidence_reference, r.recorded_at, r.recorded_by_name
+         FROM suppliers s
+         LEFT JOIN personal_data_processing_records r ON r.id = (
+             SELECT id FROM personal_data_processing_records
+             WHERE subject_type = 'supplier' AND subject_id = s.id
+             ORDER BY id DESC LIMIT 1
+         )
+         ORDER BY s.name",
     )?;
     let rows = stmt.query_map([], |row| {
+        let basis: Option<String> = row.get(15)?;
+        let processing_basis = basis
+            .map(|basis| {
+                Ok::<_, rusqlite::Error>(crate::personal_data::ProcessingBasisRecord {
+                    basis,
+                    basis_detail: row.get(16)?,
+                    purpose: row.get(17)?,
+                    effective_date: row.get(18)?,
+                    evidence_method: row.get(19)?,
+                    evidence_reference: row.get(20)?,
+                    recorded_at: row.get(21)?,
+                    recorded_by_name: row.get(22)?,
+                })
+            })
+            .transpose()?;
         Ok(Supplier {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -71,6 +98,7 @@ pub fn list_suppliers(conn: &Connection) -> Result<Vec<Supplier>> {
             offers_credit: row.get::<_, i64>(12)? != 0,
             credit_days: row.get(13)?,
             credit_limit: row.get(14)?,
+            processing_basis,
         })
     })?;
     rows.collect()
