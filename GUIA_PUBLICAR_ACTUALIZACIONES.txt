@@ -116,10 +116,13 @@ LIMITES
   una vez el nuevo instalador de la primera Release; las versiones compiladas con
   el endpoint nuevo podrán actualizarse automáticamente después.
 - El tag v1.0.2 no pudo publicarse porque faltaban los secretos de firma. La clave
-  de firma se regeneró para v1.0.3. La compilación firmada de v1.0.3 sí terminó,
-  pero su publicación falló al generar latest.json porque el script buscaba las
-  versiones del proyecto dentro de la carpeta de artefactos. Esa corrección
-  requiere una nueva versión; publica v1.0.4 y no reutilices los tags anteriores.
+  de firma se regeneró para v1.0.3. La compilación firmada de v1.0.3 terminó,
+  pero la publicación falló al generar latest.json porque el script buscaba las
+  versiones del proyecto dentro de la carpeta de artefactos. La versión 1.0.4
+  corrigió ese problema y su compilación firmada terminó, pero GitHub rechazó la
+  publicación al exigir archivos MSI que no se generan. La versión siguiente,
+  v1.0.5, corrige la lista de archivos y es la que debe publicarse. No reutilices
+  tags anteriores.
 - Las pruebas locales de manifest comprueban forma, versiones, URL y presencia
   de firma; no reemplazan el build y la validación criptográfica de una Release.
 - Publicar una Release y probar la actualización en un cliente requieren los

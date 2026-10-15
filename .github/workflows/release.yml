@@ -139,6 +139,4 @@ jobs:
             artifacts/latest.json
             artifacts/**/*.exe
             artifacts/**/*.exe.sig
-            artifacts/**/*.msi
-            artifacts/**/*.msi.sig
           fail_on_unmatched_files: true
