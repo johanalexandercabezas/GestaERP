@@ -67,8 +67,10 @@ PUBLICAR UNA NUEVA VERSION
    Alternativamente, en Actions > Release GestaERP > Run workflow, introduce un
    tag existente. No ejecutes el flujo con una versión que no corresponda al tag.
 7. Espera que terminen los trabajos build-windows y publish-release. Si falla,
-   abre el paso señalado en Actions, corrige la causa y vuelve a ejecutar el
-   workflow sobre el mismo tag. No subas instaladores sin firmar manualmente.
+   abre el paso señalado en Actions y revisa la causa. Si es un fallo temporal
+   del servicio, vuelve a ejecutar el workflow sobre el mismo tag. Si hay que
+   modificar el código, prepara la siguiente versión y usa un tag nuevo. No
+   subas instaladores sin firmar manualmente.
 
 La acción comprueba que el repositorio sea público, valida que el tag coincida
 con todas las versiones, requiere secretos, compila y comprueba que el instalador
@@ -114,9 +116,10 @@ LIMITES
   una vez el nuevo instalador de la primera Release; las versiones compiladas con
   el endpoint nuevo podrán actualizarse automáticamente después.
 - El tag v1.0.2 no pudo publicarse porque faltaban los secretos de firma. La clave
-  de firma se regeneró y la versión siguiente debe usar la nueva clave pública;
-  por eso no vuelvas a ejecutar v1.0.2. La primera Release con esta clave será
-  v1.0.3.
+  de firma se regeneró para v1.0.3. La compilación firmada de v1.0.3 sí terminó,
+  pero su publicación falló al generar latest.json porque el script buscaba las
+  versiones del proyecto dentro de la carpeta de artefactos. Esa corrección
+  requiere una nueva versión; publica v1.0.4 y no reutilices los tags anteriores.
 - Las pruebas locales de manifest comprueban forma, versiones, URL y presencia
   de firma; no reemplazan el build y la validación criptográfica de una Release.
 - Publicar una Release y probar la actualización en un cliente requieren los

@@ -1,6 +1,6 @@
 {
   "productName": "GestaERP",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "identifier": "com.gestasofttech.erp",
   "build": {
     "frontendDist": "../dist",

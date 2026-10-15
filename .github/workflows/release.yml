@@ -126,7 +126,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$RELEASE_TAG" --jq .body > release-notes.md
-          node scripts/updater-manifest.mjs --bundle-dir artifacts --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          node scripts/updater-manifest.mjs --bundle-dir artifacts --project-root . --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --notes-file release-notes.md
 
       - name: Publicar GitHub Release y artefactos
         uses: softprops/action-gh-release@v2

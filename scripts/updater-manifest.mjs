@@ -3,11 +3,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-export async function createUpdaterManifest({ bundleDir, tag, repository, notes }) {
+export async function createUpdaterManifest({ bundleDir, projectRoot = bundleDir, tag, repository, notes }) {
   if (!repository || !/^[\w.-]+\/[\w.-]+$/.test(repository)) {
     throw new Error("Indica un repositorio GitHub válido (propietario/repositorio).");
   }
-  const version = await validateReleaseVersion({ root: bundleDir, tag, repository });
+  const version = await validateReleaseVersion({ root: projectRoot, tag, repository });
 
   const files = await listFiles(bundleDir);
   const installers = files.filter((file) => /setup\.exe$/i.test(file));
@@ -132,15 +132,17 @@ async function main() {
   }
 
   const bundleDir = path.resolve(args.get("--bundle-dir") ?? "");
+  const projectRoot = path.resolve(args.get("--project-root") ?? process.cwd());
   const tag = args.get("--tag");
   const repository = args.get("--repository") ?? process.env.GITHUB_REPOSITORY;
   if (args.has("--validate-only")) {
-    const version = await validateReleaseVersion({ root: bundleDir, tag, repository });
+    const version = await validateReleaseVersion({ root: projectRoot, tag, repository });
     console.log(`Versiones alineadas para v${version}.`);
     return;
   }
   const manifest = await createUpdaterManifest({
     bundleDir,
+    projectRoot,
     tag,
     repository,
     notes: args.has("--notes-file")

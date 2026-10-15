@@ -125,6 +125,28 @@ test("incluye las notas de publicación en el manifest", async () => {
   }
 });
 
+test("lee la versión del proyecto aunque los instaladores estén en otra carpeta", async () => {
+  const { root } = await makeFixture();
+  const bundleDir = path.join(root, "artifacts");
+  try {
+    await mkdir(bundleDir);
+    await writeFile(path.join(bundleDir, "GestaERP_1.0.1_x64-setup.exe"), "fixture installer");
+    await writeFile(
+      path.join(bundleDir, "GestaERP_1.0.1_x64-setup.exe.sig"),
+      "valid-signature",
+    );
+    const manifest = await createUpdaterManifest({
+      bundleDir,
+      projectRoot: root,
+      tag: "v1.0.1",
+      repository: "johanalexandercabezas/GestaERP",
+    });
+    assert.equal(manifest.version, "1.0.1");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("rechaza el manifest si Tauri apunta a otro repositorio", async () => {
   const { root } = await makeFixture();
   try {
